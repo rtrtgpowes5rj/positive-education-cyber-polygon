@@ -40,6 +40,13 @@ const FinalShader={
  }`
 };
 
+// Занавес ждёт, пока все живые 3D-сцены отрисуют n кадров (шейдеры скомпилированы, кадр не пустой)
+export function stagesWarm(n=3,timeout=4000){
+ const t0=performance.now();
+ return new Promise(r=>{const f=()=>{const st=[...(window.__stages||[])].filter(c=>!c.dead);
+  if(st.every(c=>(c.frames||0)>=n)||performance.now()-t0>timeout)r();else requestAnimationFrame(f)};requestAnimationFrame(f)});
+}
+
 export function createStage(parent,{bg=0x0c0d0f,fog=0.0,bloom=[0.7,0.55,0.9],shadows=true,fov=32,quality=1,maxDpr=2}={}){
  const w=parent.clientWidth||1920,h=parent.clientHeight||1080;
  const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
@@ -95,14 +102,14 @@ export function createStage(parent,{bg=0x0c0d0f,fog=0.0,bloom=[0.7,0.55,0.9],sha
  let raf,last=performance.now(),acc=0,frames=0,curDpr=dpr,drops=0;
  const loop=now=>{
   if(ctx.dead)return;
-  const dt=Math.min(/sim/.test(location.search)?0.1:0.05,(now-last)/1000);last=now;ctx.t+=dt;
+  const dt=Math.max(0,Math.min(/sim/.test(location.search)?0.1:0.05,(now-last)/1000));last=now;ctx.t+=dt;
   if(document.hidden||ctx.paused){raf=requestAnimationFrame(loop);return}
   for(const f of ctx.updaters){if(ctx.dead)return;f(dt,ctx.t)}
   if(ctx.dead)return;
   const fx=ctx.fx;fx.shake*=Math.pow(0.002,dt);fx.ab*=Math.pow(0.01,dt);fx.flash*=Math.pow(0.02,dt);
   acc+=dt;frames++;if(acc>2.5){const avg=acc/frames;acc=0;frames=0;if(avg>0.045&&curDpr>0.8&&drops<2&&ctx.t<12){drops++;curDpr=Math.max(0.8,curDpr-0.3);renderer.setPixelRatio(curDpr);composer.setPixelRatio(curDpr)}}
   finalPass.uniforms.uTime.value=ctx.t;finalPass.uniforms.uAb.value=0.0003+fx.ab*0.0028;finalPass.uniforms.uFlash.value=fx.flash;
-  if(!ctx.lost)composer.render(dt);
+  if(!ctx.lost){composer.render(dt);ctx.frames=(ctx.frames||0)+1}
   raf=requestAnimationFrame(loop);
  };
  raf=requestAnimationFrame(loop);

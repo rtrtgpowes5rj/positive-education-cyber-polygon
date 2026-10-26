@@ -35,7 +35,7 @@ const Scene=memo(function Scene({socLit}){
   <g transform="translate(538,238)"><Mail/></g>
   <g transform="translate(470,470)"><Switch/></g>
   <g transform="translate(730,462)"><Workstations/></g>
-  <g transform="translate(790,396)"><SocWall lit={socLit}/></g>
+  <g transform="translate(690,212)"><SocWall lit={socLit}/></g>
  </g>;
 });
 

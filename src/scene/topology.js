@@ -27,7 +27,7 @@ export const WEB=[[430,150],[548,150]];
 export const MAIL=[[430,268],[538,268]];
 export const CORE=[[430,322],[430,489],[470,489]];
 export const WS=[[622,500],[690,500],[690,540],[732,540]];
-export const SOC=[[622,478],[700,478],[700,418],[790,418]];
+export const SOC=[[622,478],[650,478],[650,330],[775,330]];
 export const cables=[IN,TRUNK,WEB,[[430,268],[430,322]],MAIL,CORE,WS,SOC];
 
 export const tools={
@@ -46,7 +46,7 @@ export const slots=[
  {id:'sandbox',at:[484,268],label:'Почтовый сервер',note:'вложения из писем',need:'проверять файлы до доставки',tag:[104,56,'middle']},
  {id:'nta',at:[546,440],label:'Ядро сети',note:'трафик между сегментами',need:'видеть трафик между узлами',tag:[0,100,'middle']},
  {id:'edr',at:[810,500],label:'Рабочие станции',note:'процессы на хостах',need:'контролировать процессы на хостах',tag:[0,100,'middle']},
- {id:'siem',at:[866,372],label:'SOC',note:'журналы всех систем',need:'собирать события со всех систем',tag:[0,-46,'middle']}
+ {id:'siem',at:[775,318],label:'SOC',note:'журналы всех систем',need:'собирать события со всех систем',tag:[0,-46,'middle']}
 ];
 
 const R=(id,kind,world,guard,every,hit,delay=0,extra={})=>{

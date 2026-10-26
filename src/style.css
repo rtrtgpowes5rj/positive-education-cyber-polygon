@@ -952,3 +952,33 @@ body.over-planet .attract{cursor:grab}body.grabbing .attract{cursor:grabbing}
 .qr-card .sel-empty span{font:400 16px/1.4 var(--sans);color:var(--mute);word-break:normal}
 .tk-set span{font:500 17px var(--sans);letter-spacing:0;color:var(--mute)}
 .tk-set span::before{color:var(--red);opacity:1}
+.r-levels li{grid-template-columns:230px 1fr 72px}
+.li-title{text-wrap:balance}
+
+/* v17.1: анимация проверки на доске расследования */
+.pm-node rect{fill:none;stroke:none}
+.pm-node .pm-box{fill:#1e2024;stroke:#34373e;stroke-width:1.2;transition:fill .3s,stroke .3s}
+.pm-node.hot .pm-box{fill:#2a1512;stroke:var(--red)}
+.pm-node.iso .pm-box{fill:#12201a;stroke:var(--mint)}
+/* верная цепочка: импульс бежит по пути атаки, узлы вспыхивают по очереди */
+.pm-pulse{fill:none;stroke:#ffd2c8;stroke-width:3.2;stroke-linecap:round;stroke-dasharray:18 120;stroke-dashoffset:18;opacity:0;animation:pmPulse 1.1s var(--d) cubic-bezier(.4,0,.2,1) 2}
+@keyframes pmPulse{0%{opacity:1;stroke-dashoffset:18}85%{opacity:1}100%{opacity:0;stroke-dashoffset:-100}}
+.pm-respond .pm-node.hot .pm-box{animation:pmFlash .7s calc(var(--d) + .25s) cubic-bezier(.23,1,.32,1) both}
+@keyframes pmFlash{0%{fill:#2a1512}30%{fill:#6a2418;stroke:#ff8a70}100%{fill:#2a1512}}
+.pm-respond .pm-srv.hot{animation:pmFlash .6s var(--d) cubic-bezier(.23,1,.32,1) both}
+/* реагирование: кольца изоляции расходятся, связи гаснут и перечёркиваются, серверы спасены */
+.pm-ring{fill:none!important;stroke:var(--mint)!important;stroke-width:2;transform-box:fill-box;transform-origin:center;opacity:0;animation:pmRing 1.4s cubic-bezier(.23,1,.32,1) 2}
+.pm-ring.r2{animation-delay:.35s}
+@keyframes pmRing{0%{opacity:.9;transform:scale(.96)}100%{opacity:0;transform:scale(1.18)}}
+.pm-e.cut{stroke:#3a3d44;stroke-dasharray:3 6;animation:none}
+.pm-cuts path{fill:none;stroke:var(--mint);stroke-width:2.6;stroke-linecap:round;stroke-dasharray:20;stroke-dashoffset:20;animation:pmDraw .4s .3s ease-out forwards}
+@keyframes pmDraw{to{stroke-dashoffset:0}}
+.pm-srv.safe{fill:#1e2024;stroke:#2f7a5a;transition:fill .6s .4s,stroke .6s .4s}
+.pm-done .pm-dump{opacity:0;transition:opacity .4s}
+/* цепочка: точки этапов загораются по очереди, ошибки коротко вздрагивают */
+.ch-respond .ch-dot,.ch-done .ch-dot{animation:dotOk .5s calc(var(--i) * .16s + .2s) cubic-bezier(.23,1,.32,1) both}
+@keyframes dotOk{0%{transform:scale(1)}40%{transform:scale(1.5);background:var(--mint);border-color:var(--mint)}100%{transform:scale(1);background:var(--mint);border-color:var(--mint)}}
+.ch-respond .ch-step.filled .ch-slot,.ch-done .ch-step.filled .ch-slot{border-color:#2f7a5a;transition:border-color .4s calc(var(--i) * .16s + .2s)}
+.ch-step.bad .ch-slot{animation:chShake .42s cubic-bezier(.36,.07,.19,.97)}
+@keyframes chShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(6px)}60%{transform:translateX(-3px)}80%{transform:translateX(1px)}}
+@media (prefers-reduced-motion:reduce){.pm-pulse,.pm-ring{display:none}}

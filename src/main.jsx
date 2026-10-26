@@ -9,7 +9,7 @@ import {levels,blitz,programs,people,rankFor,ticker,loadQuestions} from './data'
 import NetMap from './scene/NetMap';
 import NetStage,{net} from './gl/NetStage';
 import Hero3D,{hero} from './gl/Hero3D';
-import {webglOK} from './gl/core';
+import {webglOK,stagesWarm} from './gl/core';
 import Finale3D from './gl/Finale3D';
 import {reduced,Btn,hintStat,Odo,holdGate,releaseGate} from './ui';
 import Showcase from './Showcase';
@@ -111,7 +111,7 @@ function Curtain({level,lv=0,hold,onCovered,onLift,onDone}){
    }
    cover();
    await wait(level?(hold??1350):(hold??380));if(dead)return;
-   await frames(3);if(dead)return;
+   await frames(3);await stagesWarm(4);if(dead)return;
    lift();
    const b=el.animate([{transform:'translateY(0)'},{transform:'translateY(-100%)'}],{duration:720,easing:ease,fill:'forwards'});anims.push(b);
    await b.finished.catch(()=>{});if(dead)return;
@@ -204,7 +204,7 @@ function App(){
  const [myRec,setMyRec]=useState(null),[demo,setDemo]=useState(false),[idleLeft,setIdleLeft]=useState(null),[diving,setDiving]=useState(false);
  const keyRef=useRef(''),lastTouch=useRef(Date.now()),demoRef=useRef(false),lvT0=useRef(Date.now()),[admin,setAdmin]=useState(false);demoRef.current=demo;
  useEffect(()=>{const k=e=>{if(e.ctrlKey&&e.shiftKey&&(e.key==='L'||e.key==='l'||e.key==='Д'||e.key==='д')){e.preventDefault();setAdmin(a=>!a)}};addEventListener('keydown',k);return()=>removeEventListener('keydown',k)},[]);
- useEffect(()=>{net.set({mode:screen==='play'?(ready?'play':'pre'):'attract',slotsVisible:screen==='play'&&li===0&&ready})},[screen,li,ready]);
+ useEffect(()=>{net.set({mode:screen==='play'?'play':'attract',slotsVisible:screen==='play'&&li===0&&ready})},[screen,li,ready]);
  useEffect(()=>{loadQuestions()},[]);
  useEffect(()=>{if(!import.meta.env.DEV)return;const h=location.hash.match(/^#(l([1-5])|results|final|demo)$/);if(!h)return;
   if(h[1]==='demo'){setDemo(true);return}

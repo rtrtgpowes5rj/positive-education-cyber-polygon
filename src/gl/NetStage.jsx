@@ -16,7 +16,7 @@ export const net={
 let ver=0;const snap=()=>ver;
 const useNet=()=>useSyncExternalStore(f=>net.sub(()=>{ver++;f()}),snap);
 
-const tagOff={ngfw:[0,92],waf:[0,-78],sandbox:[118,58],nta:[0,86],edr:[0,92],siem:[0,-78]};
+const tagOff={ngfw:[0,92],waf:[0,-78],sandbox:[118,58],nta:[0,86],edr:[0,92],siem:[0,-150]};
 
 export default function NetStage({quality=1}){
  const host=useRef(),labels=useRef({}),poolRef=useRef(),inetRef=useRef();

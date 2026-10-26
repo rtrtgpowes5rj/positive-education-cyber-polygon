@@ -26,20 +26,26 @@ const byId=Object.fromEntries(events.map(e=>[e.id,e]));
 
 // Схема пути атаки: чистый вектор, хосты загораются по мере сборки цепочки
 const N={ws:{x:16,y:92,w:156,label:'WS-114',sub:'рабочая станция'},dc:{x:252,y:18,w:164,label:'DC-01',sub:'контроллер домена'},fs:{x:252,y:166,w:164,label:'SRV-FILE',sub:'файловый сервер'}};
-function PathMap({chain,phase}){
- const on=id=>chain.includes(id),cut=phase==='done';
- const Box=({n,k,hot,iso})=><g className={'pm-node'+(hot?' hot':'')+(iso?' iso':'')} transform={`translate(${n.x} ${n.y})`}>
-  <rect width={n.w} height="56" rx="10"/><text className="pm-l" x="14" y="25">{n.label}</text><text className="pm-s" x="14" y="44">{n.sub}</text>
-  {iso&&<text className="pm-iso" x={n.w/2} y="-10" textAnchor="middle">изолирован</text>}</g>;
- return <svg className="pathmap" viewBox="0 0 640 240" role="img" aria-label="Путь атаки по сети">
-  <path className={'pm-e'+(on('s1')?' hot':'')} d="M172 112 C214 112 214 46 252 46"/>
-  <path className={'pm-e'+(on('s2')?' hot':'')} d="M172 128 C214 128 214 194 252 194"/>
-  <path className={'pm-e'+(on('s4')?' hot':'')} d="M416 194 C446 194 446 151 468 151"/>
-  <path className={'pm-e'+(on('s4')?' hot':'')} d="M416 194 L468 194"/>
-  <path className={'pm-e'+(on('s4')?' hot':'')} d="M416 194 C446 194 446 228 468 228"/>
-  <Box n={N.ws} hot={on('s1')||on('s2')} iso={cut}/><Box n={N.dc} hot={on('s1')}/><Box n={N.fs} hot={on('s2')||on('s3')} iso={cut}/>
-  {on('s3')&&<g className="pm-dump"><circle cx="416" cy="166" r="8"/><text x="404" y="150" text-anchor="end">lsass</text></g>}
-  {[0,1,2,3,4,5].map(i=><rect key={i} className={'pm-srv'+(on('s4')?' hot':'')} x={468+(i%3)*54} y={i<3?134:178} width="40" height="34" rx="7"/>)}
+// Рёбра пути атаки: этап, геометрия, задержка импульса при проверке
+const EDGES=[
+ {st:'s1',d:'M172 112 C214 112 214 46 252 46',t:0},
+ {st:'s2',d:'M172 128 C214 128 214 194 252 194',t:.35},
+ {st:'s4',d:'M416 194 C444 194 444 151 468 151',t:.95},
+ {st:'s4',d:'M416 194 L468 194',t:.95}
+];
+function PathMap({chain,phase,bad}){
+ const on=id=>chain.includes(id),cut=phase==='done',ok=phase!=='build';
+ const Box=({n,hot,iso,t})=><g className={'pm-node'+(hot?' hot':'')+(iso?' iso':'')} transform={`translate(${n.x} ${n.y})`} style={{'--d':t+'s'}}>
+  {iso&&<><rect className="pm-ring" x="-6" y="-6" width={n.w+12} height="68" rx="14"/><rect className="pm-ring r2" x="-6" y="-6" width={n.w+12} height="68" rx="14"/></>}
+  <rect className="pm-box" width={n.w} height="56" rx="10"/><text className="pm-l" x="14" y="25">{n.label}</text><text className="pm-s" x="14" y="44">{n.sub}</text>
+  {iso&&<text className="pm-iso" x={n.w/2} y="-14" textAnchor="middle">изолирован</text>}</g>;
+ return <svg className={'pathmap pm-'+phase+(bad.length?' pm-bad':'')} viewBox="0 0 640 240" role="img" aria-label="Путь атаки по сети">
+  {EDGES.map((e,k)=><path key={'e'+k} className={'pm-e'+(on(e.st)?' hot':'')+(cut?' cut':'')} d={e.d}/>)}
+  {ok&&!cut&&EDGES.map((e,k)=><path key={'p'+k} className="pm-pulse" d={e.d} pathLength="100" style={{'--d':e.t+'s'}}/>)}
+  {cut&&<g className="pm-cuts"><path d="M206 70l12 12M218 70l-12 12"/><path d="M206 150l12 12M218 150l-12 12"/><path d="M436 166l12 12M448 166l-12 12"/></g>}
+  <Box n={N.ws} hot={on('s1')||on('s2')} iso={cut} t={0}/><Box n={N.dc} hot={on('s1')} t={.3}/><Box n={N.fs} hot={on('s2')||on('s3')} iso={cut} t={.65}/>
+  {on('s3')&&<g className="pm-dump"><circle cx="416" cy="166" r="8"/><text x="404" y="150" textAnchor="end">lsass</text></g>}
+  {[0,1,2,3,4,5].map(i=><rect key={i} className={'pm-srv'+(on('s4')?' hot':'')+(cut?' safe':'')} x={468+(i%3)*54} y={i<3?134:178} width="40" height="34" rx="7" style={{'--d':(1.15+i*.06)+'s'}}/>)}
   <text className="pm-s" x="549" y="230" textAnchor="middle">6 серверов</text>
  </svg>;
 }
@@ -84,8 +90,8 @@ export default function Soc({level,onWin}){
       </button>)}
      </div>
      <div className="side">
-      <PathMap chain={chain} phase={phase}/>
-      <ol className="chain">{stages.map((s,i)=>{const e=chain[i]&&byId[chain[i]];return <li key={s.id} ref={el=>slotEls.current[i]=el} className={'ch-step'+(e?' filled':'')+(bad.includes(i)?' bad':'')+(phase!=='build'?' locked':'')+(pick||ghost?' armed':'')+(over===i?' over':'')} onClick={()=>pick?put(pick,i):e&&clear(i)}>
+      <PathMap key={phase+bad.join()} chain={chain} phase={phase} bad={bad}/>
+      <ol className={"chain ch-"+phase}>{stages.map((s,i)=>{const e=chain[i]&&byId[chain[i]];return <li key={s.id+(bad.includes(i)?'b':'')} style={{'--i':i}} ref={el=>slotEls.current[i]=el} className={'ch-step'+(e?' filled':'')+(bad.includes(i)?' bad':'')+(phase!=='build'?' locked':'')+(pick||ghost?' armed':'')+(over===i?' over':'')} onClick={()=>pick?put(pick,i):e&&clear(i)}>
        <i className="ch-dot" aria-hidden="true"/>
        <div className="ch-name"><b>{s.name}</b><span>{s.hint}</span></div>
        <div className="ch-slot">{e?<><code>{e.code}</code><span className="ch-host">{e.src}</span><span className="ch-txt">{e.text}</span></>:<span className="ch-ph">{pick?'Нажмите, чтобы поставить сюда':'Перетащите событие сюда'}</span>}</div>
