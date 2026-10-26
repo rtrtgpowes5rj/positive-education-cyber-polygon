@@ -1,6 +1,6 @@
 // Таблица рекордов стенда. Хранится в localStorage браузера стенда и переживает перезапуски.
 // Сортировка: больше очков выше; при равенстве — быстрее выше.
-const KEY='pe-board-v1',MAX=10;
+const KEY='pe-board-v2',MAX=10;
 const cmp=(a,b)=>b.score-a.score||a.secs-b.secs;
 
 export const loadBoard=()=>{try{const l=JSON.parse(localStorage.getItem(KEY));return Array.isArray(l)?l.filter(x=>x&&x.name&&Number.isFinite(x.score)).sort(cmp):[]}catch(e){return[]}};

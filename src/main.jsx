@@ -60,7 +60,7 @@ function Hud({level,score,seconds,onHome}){
 
 function Attract({onStart,onDemo,diving}){
  const ref=useRef();
- const rec=loadBoard().slice(0,5).map((r,i)=>`★ ${i+1}. ${r.name} — ${r.score} очков · ${fmtTime(r.secs)}`);
+ const rec=loadBoard().slice(0,3).map((r,i)=>`★ ${i+1}. ${r.name} — ${r.score} очков · ${fmtTime(r.secs)}`);
  const items=[...ticker.slice(0,3),...(rec.length?rec:['★ Таблица рекордов пуста — станьте первым']),...ticker.slice(3)];
  useEffect(()=>{if(!diving||reduced())return;const q=x=>ref.current.querySelectorAll(x);
   const tl=gsap.timeline();tl.to(q('.att-anim'),{opacity:0,x:-70,duration:.6,stagger:.05,ease:'power3.in'},0).to(q('.att-ticker,.demo-open,.att-grad'),{opacity:0,duration:.5},0);return()=>tl.kill()},[diving]);
@@ -104,14 +104,16 @@ function Curtain({level,lv=0,hold,onCovered,onLift,onDone}){
    if(reduced()){cover();await wait(level?1400:150);await frames(2);if(dead)return;lift();cb.current.onDone&&cb.current.onDone();return}
    const a=el.animate([{transform:'translateY(100%)'},{transform:'translateY(0)'}],{duration:620,easing:ease,fill:'forwards'});anims.push(a);
    await a.finished.catch(()=>{});if(dead)return;
-   if(level){
-    gsap.fromTo(q('.li-mask > *'),{yPercent:110},{yPercent:0,duration:.8,stagger:.09,ease:'expo.out'});
-    gsap.fromTo(q('.li-steps li'),{opacity:0,y:10},{opacity:1,y:0,duration:.45,stagger:.05,ease:'power2.out',delay:.3});
-    await wait(1050);if(dead)return;
-   }
+   // сначала тяжёлое: новая сцена монтируется и прогревается за закрытым кадром
    cover();
-   await wait(level?(hold??1350):(hold??380));if(dead)return;
    await frames(3);await stagesWarm(4);if(dead)return;
+   if(level){
+    // текст заставки анимируется, когда главный поток уже свободен, и держится ~5 с
+    el.classList.add('li-go');
+    gsap.fromTo(q('.li-mask > *'),{yPercent:110},{yPercent:0,duration:.9,stagger:.12,ease:'expo.out'});
+    gsap.fromTo(q('.li-steps li'),{opacity:0,y:10},{opacity:1,y:0,duration:.5,stagger:.06,ease:'power2.out',delay:.4});
+    await wait(hold??5000);if(dead)return;
+   }else{await wait(hold??300);if(dead)return}
    lift();
    const b=el.animate([{transform:'translateY(0)'},{transform:'translateY(-100%)'}],{duration:720,easing:ease,fill:'forwards'});anims.push(b);
    await b.finished.catch(()=>{});if(dead)return;
