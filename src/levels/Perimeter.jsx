@@ -3,7 +3,7 @@ import {gsap} from 'gsap';
 import NetMap from '../scene/NetMap';
 import {Glyph} from '../scene/art';
 import {tools,slots} from '../scene/topology';
-import {Briefing,useThread,stagePt,reduced,Reveal} from '../ui';
+import {Briefing,useThread,stagePt,reduced,onLift} from '../ui';
 import {net} from '../gl/NetStage';
 import {webglOK} from '../gl/core';
 
@@ -20,9 +20,9 @@ export default function Perimeter({level,onWin}){
 
  useLayoutEffect(()=>{
   net.set({placed:{},armed:false,hover:null,wrong:null});
-  if(!reduced())gsap.from(trayRef.current,{y:40,opacity:0,duration:.7,ease:'power3.out',delay:1.6});
+  let tw,off=()=>{};if(!reduced()){gsap.set(trayRef.current,{y:32,opacity:0});off=onLift(()=>{tw=gsap.to(trayRef.current,{y:0,opacity:1,duration:.7,ease:'expo.out',delay:.5,clearProps:'transform,opacity'})})}
   const iv=setInterval(()=>setStats({...net.stats()}),400);
-  return()=>{clearInterval(iv);net.set({placed:{},armed:false,hover:null,wrong:null})};
+  return()=>{off();tw&&tw.kill();clearInterval(iv);net.set({placed:{},armed:false,hover:null,wrong:null})};
  },[]);
 
  const assign=(toolId,slotId)=>{
@@ -64,11 +64,7 @@ export default function Perimeter({level,onWin}){
   <div className="work">
    <div className="map-wrap">
     {!GL&&<NetMap placed={placed} showSlots slotRefs={slotRefs} armed={!!armed} wrong={wrong} onSlot={pickSlot}/>}
-    <Reveal className="legend-rv" panelClass="legend-panel" label={<><i className="lg threat"/><i className="lg legit"/><i className="lg log"/>обозначения</>}>
-     <b className="rv-i rv-title">Что летит по сети</b>
-     <span className="rv-i"><i className="lg threat"/>атака — гаснет, когда защита на месте</span><span className="rv-i"><i className="lg legit"/>обычный трафик сотрудников</span><span className="rv-i"><i className="lg log"/>события, которые уходят в SIEM</span>
-    </Reveal>
-    {GL&&<div className="live-stats"><div><small>отражено</small><b className="ok">{stats.block}</b></div><div><small>прорывов</small><b className="bad">{stats.breach}</b></div></div>}
+    {GL&&<div className="live-stats"><div><small>Отражено</small><b className="ok">{stats.block}</b></div><div><small>Прорывов</small><b className="bad">{stats.breach}</b></div></div>}
     {GL&&armed&&<ClickCatcher onPick={pickSlot} hitSlot={hitSlot}/>}
     {GL&&armed&&<div className="pick-hint">Нажмите на красное кольцо, куда поставить {tools[armed].name}</div>}
    </div>

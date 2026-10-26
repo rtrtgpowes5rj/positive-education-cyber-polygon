@@ -1,6 +1,5 @@
 import React,{useLayoutEffect,useEffect,useRef,useState} from 'react';
 import {gsap} from 'gsap';
-import {Arrow} from './scene/art';
 import {programs,catalogs,ecosystem,baseShort} from './data';
 import {Qr,reduced,Reveal} from './ui';
 import {loadBoard} from './records';
@@ -37,8 +36,8 @@ export default function Showcase({results,onRestart,mine}){
    {[catalogs.pros,catalogs.products].map(c=><div key={c.url} className="s-anim qr-card"><Qr url={c.url} label={c.title}/><div><b>{c.title}</b><small>{c.note}</small><span>{c.short}</span></div></div>)}
    <div className={'s-anim qr-card sel'+(p?' on':'')}>
     {p&&!p.plan&&<><Qr url={p.url} label={p.name}/><div><em>{p.kind}</em><b>{p.name}</b><span>{p.short}</span></div></>}
-    {p&&p.plan&&<div className="sel-plan"><em>{p.kind} · запуск в 2027 году</em><b>{p.name}</b><span className="hand">ссылка и QR появятся после анонса</span></div>}
-    {!p&&<div className="sel-empty"><svg viewBox="0 0 200 90" aria-hidden="true"><Arrow from={[150,70]} to={[30,16]} bend={-30} k="sh"/></svg><span className="hand">выберите программу слева —<br/>её QR появится здесь</span></div>}
+    {p&&p.plan&&<div className="sel-plan"><em>{p.kind} · запуск в 2027 году</em><b>{p.name}</b><span>Ссылка и QR появятся после анонса.</span></div>}
+    {!p&&<div className="sel-empty"><b>QR выбранной программы</b><span>Нажмите на любую программу слева — её код появится здесь.</span></div>}
    </div>
    <TopBoard mine={mine}/>
    <button className="s-anim ghost-btn again" onClick={onRestart}>Пройти заново</button>

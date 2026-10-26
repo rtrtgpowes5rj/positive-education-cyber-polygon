@@ -3,19 +3,15 @@ import {createRoot} from 'react-dom/client';
 import {gsap} from 'gsap';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/600.css';
-import '@fontsource/caveat/cyrillic-500.css';
-import '@fontsource/caveat/cyrillic-700.css';
 import './style.css';
 import logo from './assets/edu_long.svg';
-import {Sk,d,hatch,C} from './sketch';
 import {levels,blitz,programs,people,rankFor,ticker,loadQuestions} from './data';
 import NetMap from './scene/NetMap';
 import NetStage,{net} from './gl/NetStage';
 import Hero3D,{hero} from './gl/Hero3D';
 import {webglOK} from './gl/core';
 import Finale3D from './gl/Finale3D';
-import {Arrow,Underline} from './scene/art';
-import {reduced,Btn,Avatar,hintStat,Odo} from './ui';
+import {reduced,Btn,hintStat,Odo,holdGate,releaseGate} from './ui';
 import Showcase from './Showcase';
 import Demo,{demoOrder} from './Demo';
 import {accScore,speedScore,blitzScore,makeResult,fmtTime} from './scoring';
@@ -46,7 +42,7 @@ const Num=({value,dur=.9,delay=0,prefix=''})=><Odo value={value} dur={dur+.3} de
 function ScoreBox({score}){
  const prev=useRef(score),[pops,setPops]=useState([]);
  useEffect(()=>{const d=score-prev.current;prev.current=score;if(d>0){const id=Date.now()+Math.random();setPops(p=>[...p,{id,d}]);setTimeout(()=>setPops(p=>p.filter(x=>x.id!==id)),1600)}},[score]);
- return <div className="score-box"><small>очки</small><Num value={score}/>{pops.map(p=><span key={p.id} className="pop">+{p.d}</span>)}</div>;
+ return <div className="score-box"><small>Очки</small><Num value={score}/>{pops.map(p=><span key={p.id} className="pop">+{p.d}</span>)}</div>;
 }
 
 function Hud({level,score,seconds,onHome}){
@@ -54,10 +50,9 @@ function Hud({level,score,seconds,onHome}){
  return <header className="hud">
   <button className="logo" onClick={onHome} aria-label="В начало"><img src={logo} alt="Positive Education"/></button>
   <ol className="steps">{levels.map((l,i)=><li key={l.id} className={i<level?'done':i===level?'now':''}>
-   <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><Sk of={d.ell('hs'+i,20,20,30,30,{stroke:i<level?C.mint:i===level?C.red:C.faint,strokeWidth:2,roughness:1.4,...(i===level?hatch(C.red,4,-40,1.6):{})})}/>
-    {i<level&&<Sk of={d.lines('hc'+i,[[12,21],[18,27],[29,13]],{stroke:C.mint,strokeWidth:2.6,roughness:.5})}/>}</svg>
-   <span><small>{l.code}</small>{l.name}</span></li>)}</ol>
-  <div className="hud-right"><ScoreBox score={score}/><div><small>время</small><b>{fmt(seconds)}</b></div></div>
+   <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="10" className="st-ring"/>{i===level&&<circle cx="12" cy="12" r="4.5" className="st-dot"/>}{i<level&&<path d="M7.5 12.3l3 3 6-6.3" className="st-chk"/>}</svg>
+   <span>{l.name}</span></li>)}</ol>
+  <div className="hud-right"><ScoreBox score={score}/><div><small>Время</small><b>{fmt(seconds)}</b></div></div>
   <i className="hud-prog" style={{transform:`scaleX(${Math.min(1,level/levels.length)})`}}/>
  </header>;
 }
@@ -80,64 +75,61 @@ function Attract({onStart,onDemo,diving}){
   {!webglOK()&&<div className="att-map"><NetMap/></div>}
   <div className="att-copy">
    <img className="att-anim att-logo" src={logo} alt="Positive Education"/>
-   <h1 className="att-anim">Вас атакуют.<br/><em>Прямо сейчас.<svg viewBox="0 0 520 20" preserveAspectRatio="none" aria-hidden="true"><Underline x={4} y={12} w={510} k="att"/></svg></em></h1>
+   <h1 className="att-anim">Вас атакуют.<br/><em>Прямо сейчас.</em></h1>
    <p className="att-anim">Расставьте защиту, настройте конфигурации, найдите атакующего в трафике и событиях — и проверьте код ИИ-агента до мёржа.</p>
-   <ol className="att-anim att-levels">{levels.map(l=><li key={l.id}><span>{l.code}</span>{l.name}</li>)}</ol>
+   <ol className="att-anim att-levels">{levels.map(l=><li key={l.id}>{l.name}</li>)}</ol>
    <Btn className="att-anim primary big" onClick={e=>{e.stopPropagation();onStart()}}>Начать смену</Btn>
-   <p className="att-anim att-how"><span>1</span>тяните и кликайте<span>2</span>коллега подскажет<span>3</span>в конце — программы с QR</p>
+   <p className="att-anim att-how">Пять уровней, около пяти минут. В финале — программы обучения с QR.</p>
   </div>
   <button className="demo-open" onClick={e=>{e.stopPropagation();onDemo()}}>Демо-режим</button>
   <div className="att-ticker" aria-hidden="true"><div className="tk-track">{[0,1].map(k=><div key={k} className="tk-set">{items.map((t,i)=><span key={i}>{t}</span>)}</div>)}</div></div>
  </main>;
 }
 
-// Занавес между сценами: шторка закрывает кадр (onCovered — можно менять сцену), держит паузу,
-// затем открывается (onLift — сцена начинает анимацию появления) и исчезает (onDone).
+// Занавес между сценами. Панель едет через transform средствами браузера (WAAPI) — движение идёт
+// на композиторе и не дёргается, пока за панелью монтируется тяжёлая 3D-сцена. Порядок: закрыть кадр →
+// показать заставку уровня → onCovered (монтаж новой сцены за занавесом) → пауза + пара кадров на
+// компиляцию шейдеров → onLift (анимации появления стартуют) → открыть → onDone.
 function Curtain({level,lv=0,hold,onCovered,onLift,onDone}){
- const ref=useRef(),cb=useRef({onCovered,onLift,onDone});cb.current={onCovered,onLift,onDone};
- const tlRef=useRef(),lifted=useRef(false);
+ const ref=useRef(),cb=useRef();cb.current={onCovered,onLift,onDone};
+ const skipRef=useRef(null);
  useEffect(()=>{
-  const el=ref.current,q=s=>el.querySelectorAll(s);
-  const covered=()=>cb.current.onCovered&&cb.current.onCovered();
-  const lift=()=>{if(lifted.current)return;lifted.current=true;cb.current.onLift&&cb.current.onLift()};
-  if(reduced()){covered();const t=setTimeout(()=>{lift();cb.current.onDone&&cb.current.onDone()},level?1600:200);return()=>clearTimeout(t)}
-  const tl=gsap.timeline({onComplete:()=>cb.current.onDone&&cb.current.onDone()});tlRef.current=tl;
-  tl.set(el,{clipPath:'inset(100% 0% 0% 0%)'})
-   .to(el,{clipPath:'inset(0% 0% 0% 0%)',duration:.62,ease:'power3.inOut'},0)
-   .fromTo(q('.c-edge'),{yPercent:0,top:'100%'},{top:'0%',duration:.62,ease:'power3.inOut'},0)
-   .to(q('.c-edge'),{opacity:0,duration:.25},.62)
-   .call(covered,null,.64);
-  if(level){
-   tl.fromTo(q('.li-num span'),{yPercent:105},{yPercent:0,duration:.9,ease:'power4.out'},.5)
-    .fromTo(q('.li-rule path'),{strokeDasharray:1,strokeDashoffset:1},{strokeDashoffset:0,duration:.7,ease:'power2.inOut'},.75)
-    .fromTo(q('.li-mask > *'),{yPercent:110},{yPercent:0,duration:.75,stagger:.08,ease:'power3.out'},.72)
-    .fromTo(q('.li-steps li'),{opacity:0,y:10},{opacity:1,y:0,duration:.4,stagger:.05,ease:'power2.out'},.95)
-    .fromTo(q('.li-scan'),{top:'-10%'},{top:'110%',duration:1.6,ease:'power1.inOut'},.6)
-    .to({},{duration:hold??1.9});
-  }else tl.to({},{duration:hold??.45});
-  tl.call(lift)
-   .set(q('.c-edge'),{opacity:1})
-   .to(el,{clipPath:'inset(0% 0% 100% 0%)',duration:.75,ease:'power3.inOut'})
-   .fromTo(q('.c-edge'),{top:'100%'},{top:'0%',duration:.75,ease:'power3.inOut'},'<');
-  return()=>tl.kill();
+  const el=ref.current,q=s=>el.querySelectorAll(s);let dead=false,held=false;const anims=[];
+  const wait=ms=>new Promise(r=>{const t=setTimeout(r,ms);skipRef.current=()=>{clearTimeout(t);r()}});
+  const frames=n=>new Promise(r=>{const f=()=>{if(--n<=0)r();else requestAnimationFrame(f)};requestAnimationFrame(f)});
+  const ease='cubic-bezier(.77,0,.175,1)';
+  const cover=()=>{held=true;holdGate();cb.current.onCovered&&cb.current.onCovered()};
+  const lift=()=>{cb.current.onLift&&cb.current.onLift();held=false;releaseGate()};
+  (async()=>{
+   if(reduced()){cover();await wait(level?1400:150);await frames(2);if(dead)return;lift();cb.current.onDone&&cb.current.onDone();return}
+   const a=el.animate([{transform:'translateY(100%)'},{transform:'translateY(0)'}],{duration:620,easing:ease,fill:'forwards'});anims.push(a);
+   await a.finished.catch(()=>{});if(dead)return;
+   if(level){
+    gsap.fromTo(q('.li-mask > *'),{yPercent:110},{yPercent:0,duration:.8,stagger:.09,ease:'expo.out'});
+    gsap.fromTo(q('.li-steps li'),{opacity:0,y:10},{opacity:1,y:0,duration:.45,stagger:.05,ease:'power2.out',delay:.3});
+    await wait(1050);if(dead)return;
+   }
+   cover();
+   await wait(level?(hold??1350):(hold??380));if(dead)return;
+   await frames(3);if(dead)return;
+   lift();
+   const b=el.animate([{transform:'translateY(0)'},{transform:'translateY(-100%)'}],{duration:720,easing:ease,fill:'forwards'});anims.push(b);
+   await b.finished.catch(()=>{});if(dead)return;
+   cb.current.onDone&&cb.current.onDone();
+  })();
+  return()=>{dead=true;anims.forEach(x=>x.cancel());gsap.killTweensOf(q('.li-mask > *, .li-steps li'));if(held)releaseGate()};
  },[]);
- // клик — пропустить паузу
- const skip=()=>{const tl=tlRef.current;if(!tl||lifted.current||tl.time()<.9)return;const lab=tl.duration()-.75;if(tl.time()<lab)tl.seek(lab-.001)};
- const p=level&&people[level.who];
+ const skip=()=>skipRef.current&&skipRef.current();
  return <div className={'curtain'+(level?' with-level':'')} ref={ref} onClick={skip}>
   <i className="c-edge"/>
   {level&&<>
-   <div className="li-grid"/><div className="li-scan"/>
    <div className="li-body">
-    <div className="li-num"><span>{level.code}</span></div>
-    <svg className="li-rule" viewBox="0 0 520 18" preserveAspectRatio="none"><Sk of={d.curve('lir'+level.id,[[4,9],[130,4],[300,13],[516,6]],{stroke:C.red,strokeWidth:4,roughness:1.3})}/></svg>
-    <div className="li-mask"><div className="li-name">Уровень {level.code} · {level.name}</div></div>
+    <div className="li-mask"><div className="li-name">Уровень {lv+1} из {levels.length} · {level.name}</div></div>
     <div className="li-mask"><div className="li-title">{level.title}</div></div>
-    <div className="li-mask"><div className="li-how"><span>Как играть</span>{level.how}</div></div>
-    <div className="li-mask"><div className="li-who"><Avatar who={level.who} size={46}/><span>Задачу ставит <b>{p.name}</b>, {p.role}</span></div></div>
+    <div className="li-mask"><div className="li-how">{level.how}</div></div>
    </div>
-   <ol className="li-steps">{levels.map((l,i)=><li key={l.id} className={i<lv?'done':i===lv?'now':''}><b>{l.code}</b>{l.name}</li>)}</ol>
-   <div className="li-skip">нажмите, чтобы начать сразу</div>
+   <ol className="li-steps">{levels.map((l,i)=><li key={l.id} className={i<lv?'done':i===lv?'now':''}>{l.name}</li>)}</ol>
+   <div className="li-skip">Нажмите, чтобы начать сразу</div>
   </>}
  </div>;
 }
@@ -153,7 +145,7 @@ function Debrief({level,mistakes,hints=0,secs=0,onAnswer,onNext,last}){
   if(i===b.ok)gsap.fromTo(ref.current.querySelector('.d-sweep'),{xPercent:-100,opacity:1},{xPercent:100,duration:1.1,ease:'power2.inOut'});
   else gsap.fromTo(ref.current,{x:0},{keyframes:[{x:-10,duration:.07,ease:'power2.out'},{x:6,duration:.09},{x:-2,duration:.1},{x:0,duration:.14,ease:'power2.out'}],clearProps:'x'})};
  return <div className="debrief-wrap"><div className="debrief" ref={ref}><i className="d-sweep" aria-hidden="true"/>
-  <div className="d-anim d-head"><svg className="d-check" viewBox="0 0 48 48" aria-hidden="true"><Sk of={d.ell('dc'+level.id,24,24,42,42,{...hatch('#1d4a39',5,-40,1.4),stroke:C.mint,strokeWidth:2.2})}/><Sk of={d.lines('dcc'+level.id,[[14,25],[21,32],[34,16]],{stroke:C.ink,strokeWidth:3,roughness:.5})}/></svg>
+  <div className="d-anim d-head"><svg className="d-check" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><path d="M14.5 24.5l6.5 6.5 12.5-13"/></svg>
    <div><small>Уровень {level.code} пройден за {fmtTime(secs)}</small><b>{level.name}</b></div>
    <div className="d-pts"><Num value={acc+spd+bl} prefix="+" delay={.35} dur={1.1}/><small>из 200 возможных</small></div></div>
   <div className="d-anim d-brk">
@@ -185,13 +177,13 @@ function Results({results,onNext,onRestart,record,onSaved}){
  return <main className="results" ref={ref}>
   <section className="r-left">
    <span className="f-anim kicker">Смена закончена · время прохождения {fmtTime(playSecs)}</span>
-   <h1 className="f-anim">Атака<br/><em>остановлена.<svg viewBox="0 0 640 22" preserveAspectRatio="none" aria-hidden="true"><Underline x={4} y={13} w={630} k="res"/></svg></em></h1>
+   <h1 className="f-anim">Атака<br/><em>остановлена.</em></h1>
    <div className="f-anim score"><Odo value={total} delay={.55} dur={1.9}/><span>/ 1000</span><em className="rank-stamp">{rankFor(total)}</em></div>
    <div className="f-anim r-meta"><span>бонус скорости <b>+{speedSum}</b></span>{place&&!mine&&<span>место на стенде <b>{place}</b></span>}{mine&&<span className="ok">записано в рекорды ✓</span>}</div>
    <div className="f-anim r-btns"><Btn className="primary big" onClick={onNext}>К программам обучения</Btn>{place&&!mine&&askedOnce&&!prompt&&<button className="ghost-btn" onClick={()=>setPrompt(true)}>Оставить ник</button>}<button className="ghost-btn" onClick={onRestart}>Пройти заново</button></div>
   </section>
   <section className="r-right">
-   <ol className="r-levels">{levels.map((l,i)=>{const r=results[i]||{total:0};return <li key={l.id} className="f-anim"><span className="c">{l.code}</span><span className="n">{l.name}</span><span className="f-bar"><i style={{transform:`scaleX(${r.total/200})`}}/></span><b>{r.total}</b></li>})}</ol>
+   <ol className="r-levels">{levels.map((l,i)=>{const r=results[i]||{total:0};return <li key={l.id} className="f-anim"><span className="n">{l.name}</span><span className="f-bar"><i style={{transform:`scaleX(${r.total/200})`}}/></span><b>{r.total}</b></li>})}</ol>
    <div className="f-anim"><MiniBoard key={bump} mine={mine}/></div>
   </section>
   {prompt&&<NickPrompt place={place} score={total} secs={playSecs} onSave={save} onSkip={()=>setPrompt(false)}/>}
@@ -274,7 +266,7 @@ function App(){
   {screen==='attract'&&<Attract onStart={beginDive} onDemo={startDemo} diving={diving}/>}
   {screen==='play'&&<>
    <Hud level={li} score={shown} seconds={seconds} onHome={home}/>
-   <div className={'level-host'+(pending?' dim':'')} key={runId+'-'+li}>{ready&&<View level={L} onWin={m=>{if(keyRef.current===runId+'-'+li)win(m)}}/>}</div>
+   <div className={'level-host'+(pending?' dim':'')} key={runId+'-'+li}>{<View level={L} onWin={m=>{if(keyRef.current===runId+'-'+li)win(m)}}/>}</div>
    {pending&&<Debrief key={'d'+li+runId} level={L} mistakes={pending.mistakes} hints={pending.hints} secs={pending.secs} onAnswer={answer} onNext={next} last={li===levels.length-1}/>}
   </>}
   {screen==='results'&&<><Hud level={levels.length} score={score} seconds={seconds} onHome={home}/><Results results={results} record={!demo} onSaved={setMyRec} onNext={()=>cut(null,()=>setScreen('final'))} onRestart={start}/></>}

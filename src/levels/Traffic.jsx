@@ -1,5 +1,4 @@
 import React,{useMemo,useRef,useState} from 'react';
-import {Sk,d,C} from '../sketch';
 import {Briefing,useThread,Win,Btn} from '../ui';
 
 let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -48,14 +47,14 @@ export default function Traffic({level,onWin}){
  return <main className="level traffic">
   <Briefing level={level} thread={th} done={doneGoals}/>
   <div className="work">
-   <Win className="nad" title="PT NAD · сессии" sub="последние 10 минут" right={<span className="chip">{n} помечено</span>}>
+   <Win className="nad" title="PT NAD · сессии" sub="Последние 10 минут" right={<span className="chip">{n} помечено</span>}>
     <div className="axis"><span>−10:00</span><span>−07:30</span><span>−05:00</span><span>−02:30</span><span>сейчас</span></div>
     <div className="flow-list"><div className="playhead"/>
      {flows.map(x=><button key={x.id} className={'flow'+(sel===x.id?' sel':'')+(marked[x.id]?' marked':'')+(result?.[x.id]?' r-'+result[x.id]:'')} onClick={()=>setSel(x.id)}>
       <span className="who"><b>{x.host}</b><small>{x.src} → {x.dst}</small></span>
       <span className="proto">{x.proto}</span>
       <Strip id={x.id} on={sel===x.id}/>
-      <span className="mk">{marked[x.id]&&<svg viewBox="0 0 30 30" width="26" height="26"><Sk of={d.ell('mk'+x.id,15,15,22,22,{stroke:C.red,strokeWidth:2.2,roughness:1.5,bowing:3})}/></svg>}</span>
+      <span className="mk">{marked[x.id]&&<i className="mk-dot" aria-label="помечено"/>}</span>
      </button>)}
     </div>
     <div className="insp">
@@ -64,7 +63,7 @@ export default function Traffic({level,onWin}){
       <dl>{f.stats.map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
      </div>
      <div className="insp-r">
-      <div className="decode"><small>декодированные поля</small>{f.sample.map(s=><div key={s}><i>›</i><code>{s}</code></div>)}</div>
+      <div className="decode"><small>Декодированные поля</small>{f.sample.map(s=><div key={s}><i>›</i><code>{s}</code></div>)}</div>
       <button className={'mark-btn'+(marked[f.id]?' on':'')} onClick={()=>mark(f.id)}>{marked[f.id]?'Снять пометку':'Пометить подозрительным'}</button>
      </div>
     </div>

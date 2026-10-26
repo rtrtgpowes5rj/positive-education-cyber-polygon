@@ -76,8 +76,8 @@ export default function Agent({level,onWin}){
      <Btn className="primary" disabled={busy||won} onClick={check}>{busy?'Проверка…':'Запустить проверку'}</Btn>
     </div>
    </Win>
-   <Win className="perms" title="Права агента" sub="песочница">
-    {webglOK()&&<Panel3D kind="agent" className="agent" apiRef={core} opts={{cb,steps}} state={{grant}} title="песочница агента · нажмите на порт"/>}
+   <Win className="perms" title="Права агента" sub="Песочница">
+    {webglOK()&&<Panel3D kind="agent" className="agent" apiRef={core} opts={{cb,steps}} state={{grant}} title="Песочница агента — нажмите на порт"/>}
     <p className="perm-note">Агент запросил всё. Оставьте только нужное для задачи.</p>
     {perms.map(p=><button key={p.id} className={"perm"+(hot===p.id?" hot":"")} onMouseEnter={()=>setHot(p.id)} onMouseLeave={()=>setHot(null)} aria-pressed={grant[p.id]} onClick={()=>{if(won)return;setRun(null);core.current&&core.current.resetPipe();setGrant(g=>({...g,[p.id]:!g[p.id]}))}}><span>{p.label}</span><i className={grant[p.id]?'on':''}/></button>)}
    </Win>

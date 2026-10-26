@@ -157,10 +157,12 @@ export function createNetwork(parent,{quality=1}={}){
 
  // ===== рабочие станции и SOC =====
  const ws=group('ws',W(790,512));
- [[-1.4,-1.1],[.9,-1.4],[-.9,1.0],[1.5,.8]].forEach(([x,z],i)=>{const mo=monitor(M,{w:1.7,h:1.05,color:0x1b2b33});mo.position.set(x,0,z);ws.add(mo)});
+ [[-1.9,.5,.35],[-.6,1.5,.12],[.8,1.6,-.12],[2.0,.6,-.35]].forEach(([x,z,ry],i)=>{const mo=monitor(M,{w:1.5,h:.92,color:0x1b2b33});mo.position.set(x,0,z);mo.rotation.y=ry;ws.add(mo)});
  const soc=group('soc',W(860,414));
  const socTexs=[0,1,2].map(()=>canvasTex(256,160,(g,w,h)=>socDraw(g,w,h,false,0)));
- const desk=socDesk(M,{screens:socTexs});desk.position.set(0,-.3,0);soc.add(desk);
+ // пульт SOC на подиуме — его видно поверх рабочих станций
+ const dais=mesh(rbox(7,.7,2.6,.12),M.frame,soc,[0,.05,.35]);mesh(new THREE.BoxGeometry(6.9,.035,.035),glowMat(.3,1.3,.9),soc,[0,.36,1.66],{cast:false});
+ const desk=socDesk(M,{screens:socTexs});desk.position.set(0,.4,0);soc.add(desk);
  const socScreens=desk.userData.screens;
  let socLit=false,socT=0,socAcc=0;
 

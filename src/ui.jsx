@@ -1,10 +1,15 @@
 import React,{useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {gsap} from 'gsap';
 import qrcode from 'qrcode-generator';
-import {Sk,d,C} from './sketch';
 import {people} from './data';
 
 export const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// «Ворота» занавеса: пока кадр закрыт, новая сцена монтируется, а её анимации появления ждут подъёма
+export const gate={held:false,subs:new Set()};
+export const onLift=fn=>{if(!gate.held){fn();return()=>{}}gate.subs.add(fn);return()=>gate.subs.delete(fn)};
+export const holdGate=()=>{gate.held=true;document.querySelector('.stage')?.classList.add('held')};
+export const releaseGate=()=>{gate.held=false;document.querySelector('.stage')?.classList.remove('held');const s=[...gate.subs];gate.subs.clear();s.forEach(f=>f())};
 
 // координаты указателя в системе масштабируемой сцены 1920×1080
 export const stagePt=e=>{
@@ -18,7 +23,9 @@ export const Btn=({children,className='',...p})=><button className={'btn '+class
 // ---------- Окно «настоящего» ПО ----------
 export function Win({title,sub,right,className='',children}){
  const ref=useRef();
- useLayoutEffect(()=>{if(reduced())return;gsap.from(ref.current,{rotateY:-9,x:70,opacity:0,transformPerspective:1500,transformOrigin:'left center',duration:1,ease:'power3.out',delay:.25,clearProps:'transform,opacity'})},[]);
+ useLayoutEffect(()=>{if(reduced())return;const el=ref.current;gsap.set(el,{x:48,opacity:0});let tw;
+  const off=onLift(()=>{tw=gsap.to(el,{x:0,opacity:1,duration:.7,ease:'expo.out',delay:.12,clearProps:'transform,opacity'})});
+  return()=>{off();tw&&tw.kill();gsap.set(el,{clearProps:'transform,opacity'})}},[]);
  return <section className={'win '+className} ref={ref}>
   <header><i className="dots"><b/><b/><b/></i><span className="wt">{title}</span>{sub&&<span className="ws">{sub}</span>}<span className="wr">{right}</span></header>
   <div className="wb">{children}</div>
@@ -84,8 +91,8 @@ function Typed({text,delay=0}){
  const [n,setN]=useState(reduced()?text.length:0);
  useEffect(()=>{
   if(reduced())return;
-  let i=0,iv;const t=setTimeout(()=>{iv=setInterval(()=>{i+=2;setN(i);if(i>=text.length)clearInterval(iv)},18)},delay);
-  return()=>{clearTimeout(t);clearInterval(iv)};
+  let i=0,iv,t;const off=onLift(()=>{t=setTimeout(()=>{iv=setInterval(()=>{i+=2;setN(i);if(i>=text.length)clearInterval(iv)},18)},delay)});
+  return()=>{off();clearTimeout(t);clearInterval(iv)};
  },[text,delay]);
  return <>{text.slice(0,n)}{n<text.length&&<i className="caret"/>}</>;
 }
@@ -93,14 +100,14 @@ function Typed({text,delay=0}){
 export const Avatar=({who,size=44})=>{
  const p=people[who];
  return <svg className="avatar" viewBox="0 0 48 48" width={size} height={size} aria-hidden="true">
-  <Sk of={d.ell('av'+who,24,24,42,42,{fill:'#262a2f',fillStyle:'solid',stroke:C.ink,strokeWidth:1.8,roughness:1.4})}/>
+  <circle cx="24" cy="24" r="23" className="av-c"/>
   <text x="24" y="30" textAnchor="middle" className="av-t">{p.ini}</text>
  </svg>;
 };
 
-const Tick=({on,k})=><svg className={'tick'+(on?' on':'')} viewBox="0 0 28 28" width="26" height="26" aria-hidden="true">
- <Sk of={d.rect('cb'+k,3,3,20,20,{strokeWidth:1.8,roughness:1.3})}/>
- <Sk className="chk" of={d.lines('ck'+k,[[6,14],[12,20],[27,3]],{stroke:C.mint,strokeWidth:3.2,roughness:.7})}/>
+const Tick=({on})=><svg className={'tick'+(on?' on':'')} viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+ <rect x="1.5" y="1.5" width="21" height="21" rx="6" className="tk-box"/>
+ <path d="M7 12.4l3.3 3.3 6.7-7" className="tk-chk"/>
 </svg>;
 
 // Реплика коллеги: в кадре всегда одна — новая поднимается, прежняя уходит вверх; вся переписка — в «Истории»
@@ -124,12 +131,13 @@ function Coach({thread}){
 
 export function Briefing({level,thread,done=[]}){
  const ref=useRef();
- useLayoutEffect(()=>{if(reduced())return;const tw=gsap.fromTo(ref.current.querySelectorAll('.b-in'),{y:22,opacity:0},{y:0,opacity:1,duration:.6,stagger:.09,ease:'power3.out',delay:.1,clearProps:'transform,opacity'});return()=>tw.revert()},[]);
+ useLayoutEffect(()=>{if(reduced())return;const els=ref.current.querySelectorAll('.b-in');gsap.set(els,{y:18,opacity:0});let tw;
+  const off=onLift(()=>{tw=gsap.to(els,{y:0,opacity:1,duration:.6,stagger:.07,ease:'expo.out',clearProps:'transform,opacity'})});
+  return()=>{off();tw&&tw.kill();gsap.set(els,{clearProps:'transform,opacity'})}},[]);
  const nDone=done.filter(Boolean).length;
  return <aside className="brief" ref={ref}>
-  <div className="b-in lvl-tag"><span>Уровень {level.code}</span><i/>{level.name}</div>
-  <h1 className="b-in">{level.title}
-   <svg className="h-under" viewBox="0 0 300 14" preserveAspectRatio="none"><Sk of={d.curve('hu'+level.id,[[4,8],[80,4],[160,10],[296,5]],{stroke:C.red,strokeWidth:3,roughness:1.3})}/></svg></h1>
+  <div className="b-in lvl-tag">Уровень {+level.code} · {level.name}</div>
+  <h1 className="b-in">{level.title}</h1>
   <div className="b-in goals-head"><span>Задачи</span><b>{nDone}<em> / {level.goals.length}</em></b></div>
   <ul className="b-in goals">{level.goals.map((g,i)=><li key={g} className={done[i]?'on':''}><Tick on={done[i]} k={level.id+i}/>{g}</li>)}</ul>
   <div className="b-in coach-wrap"><Coach thread={thread}/></div>

@@ -1,7 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import Panel3D from '../gl/Panel3D';
 import {Briefing,useThread,Win,Btn,Code} from '../ui';
-import {Arrow} from '../scene/art';
 
 // risk — опасная строка (надо исправить), keep — нужна сервису (трогать нельзя)
 const files=[
@@ -68,9 +67,8 @@ export default function Hardening({level,onWin}){
  return <main className="level hardening">
   <Briefing level={level} thread={th} done={goals}/>
   <div className="work">
-   <Win className="editor" title="harden · 3 файла" sub="нажмите на строку, чтобы заменить её" right={<span className="chip">{changed} изм.</span>}>
+   <Win className="editor" title="harden · 3 файла" sub="Нажмите на строку, чтобы заменить её" right={<span className="chip">{changed} изм.</span>}>
     <div className="split"><div className="split-main">
-    {!changed&&<svg className="margin-note" viewBox="0 0 300 130" aria-hidden="true"><Arrow from={[190,92]} to={[14,22]} bend={-26} k="mn"/><text className="hand note" x="52" y="124">кликни строку или объект справа</text></svg>}
     <div className="files">{files.map(f=><div className="file" key={f.path}>
      <div className="file-head"><b>{f.path}</b><span>{f.host}</span></div>
      {f.lines.map((l,i)=>l.id?<button key={l.id} onMouseEnter={()=>setHot(l.id)} onMouseLeave={()=>setHot(null)} className={'cfg '+(fixed[l.id]?'on ':'')+(hot===l.id?'hot ':'')+(report?.[l.id]||'')} onClick={()=>toggle(l)} aria-pressed={!!fixed[l.id]}>
@@ -83,7 +81,7 @@ export default function Hardening({level,onWin}){
      {report&&<div className={'cl sum '+(ok?'ok':'bad')}>{ok?'итог: 0 замечаний, сервис доступен':`итог: открыто ${surface}, нарушено ${all.filter(l=>report[l.id]==='broken').length}`}</div>}</div>
     <div className="win-foot"><Btn className="primary" disabled={busy||!changed} onClick={scan}>{busy?'Проверяю…':'Применить и проверить'}</Btn></div>
     </div>
-    <Panel3D kind="room" apiRef={room} opts={{cb}} state={{fixed,report}} title="инфраструктура · нажмите на объект"/></div>
+    <Panel3D kind="room" apiRef={room} opts={{cb}} state={{fixed,report}} title="Инфраструктура — нажмите на объект"/></div>
    </Win>
   </div>
  </main>;
