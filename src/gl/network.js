@@ -2,6 +2,7 @@ import {createStage,THREE,PAL,toon,glow,outline,canvasTex,sprite,Sparks,Rings,ea
 import {LineSegments2} from 'three/examples/jsm/lines/LineSegments2.js';
 import {LineSegmentsGeometry} from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import {cables,slots,tools,routes} from '../scene/topology';
+import {studio,mats,rack,switchBox,appliance,monitor,socDesk,labelTex,mesh,rbox,setAccent,ledDot,glowMat} from './kit';
 
 const K=0.028;
 // плоскость схемы 1000×640 → мир (X вправо, Z к зрителю)
@@ -65,7 +66,8 @@ export function createNetwork(parent,{quality=1}={}){
  // ----- пол -----
  const dot=canvasTex(64,64,(g,w,h)=>{g.fillStyle='#1c1f24';g.fillRect(0,0,w,h);g.fillStyle='#3a3f48';g.beginPath();g.arc(32,32,2.2,0,7);g.fill()});
  dot.wrapS=dot.wrapT=THREE.RepeatWrapping;dot.repeat.set(46,34);dot.colorSpace=THREE.SRGBColorSpace;
- const floor=new THREE.Mesh(new THREE.PlaneGeometry(92,68),toon(0x1b1e23,{emissive:0x0c0d10}));floor.rotation.x=-Math.PI/2;floor.position.y=-0.02;floor.receiveShadow=true;scene.add(floor);
+ studio(ctx.renderer,scene,{intensity:.45});const M=mats();
+ const floor=new THREE.Mesh(new THREE.PlaneGeometry(92,68),new THREE.MeshStandardMaterial({color:0x15181c,roughness:.82,metalness:.2}));floor.rotation.x=-Math.PI/2;floor.position.y=-0.02;floor.receiveShadow=true;scene.add(floor);
 
  const zone=(x0,y0,x1,y1,color=0x4a4d55)=>{
   const a=W(x0,y0,.02),b=W(x1,y0,.02),c=W(x1,y1,.02),d=W(x0,y1,.02);
@@ -75,15 +77,15 @@ export function createNetwork(parent,{quality=1}={}){
   fill.rotation.x=-Math.PI/2;fill.position.copy(W((x0+x1)/2,(y0+y1)/2,.01));scene.add(fill);
  };
  zone(392,52,760,358);zone(392,380,964,626);
- const slab=(x0,y0,x1,y1)=>{const a=W(x0,y0),b=W(x1,y1);const m=new THREE.Mesh(new THREE.BoxGeometry(b.x-a.x,.22,b.z-a.z),toon(0x2f343c));m.position.set((a.x+b.x)/2,.0,(a.z+b.z)/2);m.receiveShadow=true;m.castShadow=true;scene.add(m);outline(ctx,m,0x80858f,1.6,.9)};
+ const slab=(x0,y0,x1,y1)=>{const a=W(x0,y0),b=W(x1,y1);const m=new THREE.Mesh(new THREE.BoxGeometry(b.x-a.x,.22,b.z-a.z),new THREE.MeshStandardMaterial({color:0x22262d,roughness:.55,metalness:.45}));m.position.set((a.x+b.x)/2,.0,(a.z+b.z)/2);m.receiveShadow=true;m.castShadow=true;scene.add(m);outline(ctx,m,0x80858f,1.6,.9)};
  slab(392,52,760,358);slab(392,380,964,626);
 
  // ----- кабели -----
- const cableMat=toon(0x7c818b);
+ const cableMat=new THREE.MeshStandardMaterial({color:0x5c626c,roughness:.35,metalness:.7});
  cables.forEach((c,i)=>{
   const path=new THREE.CurvePath();
   for(let k=1;k<c.length;k++){const a=W(c[k-1][0],c[k-1][1],.09),b=W(c[k][0],c[k][1],.09);if(a.distanceTo(b)>.001)path.add(new THREE.LineCurve3(a,b))}
-  const tube=new THREE.Mesh(new THREE.TubeGeometry(path,Math.max(8,c.length*10),.055,6,false),i===7?toon(0x1f5a46):cableMat);tube.receiveShadow=true;scene.add(tube);
+  const tube=new THREE.Mesh(new THREE.TubeGeometry(path,Math.max(8,c.length*10),.055,6,false),i===7?new THREE.MeshStandardMaterial({color:0x1f5a46,roughness:.4,metalness:.5,emissive:0x0a2a20}):cableMat);tube.receiveShadow=true;scene.add(tube);
  });
 
  // ----- помощники -----
@@ -102,18 +104,17 @@ export function createNetwork(parent,{quality=1}={}){
  // мягкие контактные тени
  const blobTex=canvasTex(128,128,(g,w,h)=>{const q=g.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);q.addColorStop(0,'rgba(0,0,0,.65)');q.addColorStop(.6,'rgba(0,0,0,.25)');q.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=q;g.fillRect(0,0,w,h)});
  const blob=(x,y,w,d,o=.9)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshBasicMaterial({map:blobTex,transparent:true,depthWrite:false,opacity:o}));m.rotation.x=-Math.PI/2;const p=W(x,y);m.position.set(p.x,.125,p.z);scene.add(m)};
- blob(590,150,6,5);blob(584,268,4.4,3.6);blob(546,489,7,3.6);blob(790,512,7.5,6);blob(860,420,8.5,3.5);blob(322,322,3.6,4.2,.8);blob(150,330,5.5,4.6,.5);
+ blob(590,150,6,5);blob(584,268,4.4,3.6);blob(546,489,7,3.6);blob(790,512,7.5,6);blob(860,420,8.5,3.5);blob(150,330,5.5,4.6,.5);
  // подсветка пола под схемой
  const floorGlow=new THREE.Mesh(new THREE.PlaneGeometry(46,32),new THREE.MeshBasicMaterial({map:glowTexture(),color:hdr(.22,.27,.4),transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));floorGlow.rotation.x=-Math.PI/2;floorGlow.position.set(2,.03,2);scene.add(floorGlow);
  // ===== облако интернета и пул угроз =====
  const inet=group('inet',W(150,330));
  [[0,.55,0,1.5],[1.4,.4,.5,1.0],[-1.4,.35,.3,1.05],[.5,.3,-1.2,.9],[-.6,.3,1.2,.85]].forEach(([x,y,z,r],i)=>{
-  const m=new THREE.Mesh(new THREE.SphereGeometry(r,24,18),toon(0xb9c0c9));m.position.set(x,y+.2,z);m.castShadow=true;inet.add(m);
-  const l=outline(ctx,m,OL,1.6,.8,60);inet.userData.mats.push(l.material);
+  const cm=inet.userData.cm||(inet.userData.cm=new THREE.MeshStandardMaterial({color:0x8995a6,roughness:.62,metalness:.05,emissive:0x0a0e14}));const m=new THREE.Mesh(new THREE.SphereGeometry(r,32,24),cm);m.position.set(x,y+.2,z);m.castShadow=true;inet.add(m);if(i===0)inet.userData.mats.push(cm);
  });
  const hive=new THREE.Group();hive.position.copy(W(150,260,6.2));scene.add(hive);
- const core=new THREE.Mesh(new THREE.IcosahedronGeometry(1.25,0),toon(0x1a0e0e));core.castShadow=true;hive.add(core);
- outline(ctx,core,PAL.red,2.6,1,10);
+ const core=new THREE.Mesh(new THREE.IcosahedronGeometry(1.25,0),new THREE.MeshStandardMaterial({color:0x1a0c0c,roughness:.3,metalness:.8,flatShading:true,emissive:0x2a0604}));core.castShadow=true;hive.add(core);
+ const coreW=new THREE.Mesh(new THREE.IcosahedronGeometry(1.27,0),new THREE.MeshBasicMaterial({color:hdr(1.8,.2,.1),wireframe:true,toneMapped:false}));hive.add(coreW);
  const core2=new THREE.Mesh(new THREE.IcosahedronGeometry(.62,0),glow(3.2,.35,.2));hive.add(core2);
  const halo=sprite(0xfc3e24,6,.3);hive.add(halo);
  const orbit=[];
@@ -125,56 +126,42 @@ export function createNetwork(parent,{quality=1}={}){
  const sweep=new THREE.Mesh(new THREE.RingGeometry(.8,9.5,72,1,0,.75),new THREE.MeshBasicMaterial({color:hdr(1.6,.18,.1),transparent:true,opacity:.07,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));
  sweep.rotation.x=-Math.PI/2;sweep.position.copy(W(150,330,.04));scene.add(sweep);
 
- // ===== шлюз: кирпичная стена =====
- const gw=group('gw',W(322,322));
- {
-  const bricks=new THREE.InstancedMesh(new THREE.BoxGeometry(.5,.26,.95),toon(0xffffff),5*9*2);
-  let n=0;const m4=new THREE.Matrix4(),col=new THREE.Color();
-  for(let r=0;r<9;r++)for(let c=0;c<5;c++){
-   const off=r%2?.25:0;m4.makeTranslation(0,.13+r*.27,-1.15+c*.5+off-(r%2?.0:0)+.0);
-   bricks.setMatrixAt(n,m4);col.setHSL(.03+Math.random()*.02,.38,.2+Math.random()*.08);bricks.setColorAt(n,col);n++;
-  }
-  bricks.count=n;bricks.castShadow=true;bricks.receiveShadow=true;gw.add(bricks);
-  const body=new THREE.Mesh(new THREE.BoxGeometry(.56,2.42,2.6),toon(0x000000,{visible:false}));body.position.y=1.21;gw.add(body);
-  const l=outline(ctx,body,OL,2.2,1);gw.userData.mats.push(l.material);
-  const f=sprite(0xff5a2a,3.4,.9);f.position.set(0,3.1,0);gw.add(f);api.flame=f;
-  gw.userData.flame=f;
- }
 
- // ===== DMZ: стойки и почта =====
- const web=group('web',W(576,150));
- function rack(parent,x,z,w,h,d,n){
-  addBox(parent,w,h,d,BONE,new THREE.Vector3(x,h/2,z));
-  for(let i=0;i<n;i++){
-   const y=.35+i*((h-.7)/n);
-   addBox(parent,w*.8,.16,.05,0x1a1c20,new THREE.Vector3(x,y+.15,z+d/2+.02),{edge:false,cast:false});
-   led(parent,new THREE.Vector3(x+w*.3,y+.15,z+d/2+.07),i%3===2?2:0);
-  }
+ // ===== периметр: световой барьер вдоль границы сети с проёмом под межсетевой экран =====
+ const gw=group('gw',new THREE.Vector3(0,0,0));
+ const fenceMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+  uniforms:{uColor:{value:new THREE.Color(1.8,.16,.07)},uTime:{value:0},uA:{value:.9},uLen:{value:10}},
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+  fragmentShader:'uniform vec3 uColor;uniform float uTime,uA,uLen;varying vec2 vUv;void main(){float st=step(.5,fract(vUv.x*uLen*1.1+vUv.y*1.2-uTime*.35));float edge=smoothstep(.16,.0,min(vUv.y,1.-vUv.y));float a=(st*.42+edge*.9+.06)*uA;gl_FragColor=vec4(uColor*a,a);}'});
+ gw.userData.fence=fenceMat;const fenceRail=new THREE.MeshBasicMaterial({color:new THREE.Color(2.2,.22,.1),toneMapped:false});gw.userData.rail=fenceRail;
+ const FX=W(322,0).x,gapA=262,gapB=382;
+ const segs=[[48,gapA],[gapB,604]];
+ for(const [y0,y1] of segs){
+  const z0=W(0,y0).z,z1=W(0,y1).z,len=z1-z0;
+  const fm2=fenceMat.clone();fm2.uniforms=THREE.UniformsUtils.clone(fenceMat.uniforms);fm2.uniforms.uLen.value=len;gw.userData.bands=(gw.userData.bands||[]);gw.userData.bands.push(fm2);
+  const band=new THREE.Mesh(new THREE.PlaneGeometry(len,1.1),fm2);band.rotation.set(-Math.PI/2,0,Math.PI/2);band.position.set(FX,.05,(z0+z1)/2);gw.add(band);
+  for(let z=z0+.6;z<=z1-.3;z+=1.6){mesh(new THREE.CylinderGeometry(.09,.11,.7,14),M.frame,gw,[FX,.35,z]);const c=new THREE.Mesh(new THREE.CylinderGeometry(.095,.095,.06,14),fenceRail);c.position.set(FX,.72,z);gw.add(c)}
  }
- rack(web,0,0,1.6,3.5,1.3,7);rack(web,2.2,.3,1.4,2.8,1.2,5);
+ // столбы проёма
+ [gapA,gapB].forEach(y=>{const z=W(0,y).z;mesh(rbox(.46,1.0,.46,.1),M.frame,gw,[FX,.5,z]);const cap=new THREE.Mesh(new THREE.BoxGeometry(.5,.1,.5),fenceRail);cap.position.set(FX,1.04,z);gw.add(cap)});
+ gw.userData.mats.push(fenceMat);
+
+ // ===== DMZ: веб-портал (две стойки) и почта =====
+ const web=group('web',W(576,150));
+ [[0,0,1.5,3.6,1.3,8],[2.2,.25,1.3,2.9,1.2,6]].forEach(([x,z,w,h,d,u])=>{const rk=rack(M,{w,h,d,units:u,leds});rk.position.set(x,0,z);web.add(rk);web.userData.mats.push(rk.userData.body.material)});
  const mail=group('mail',W(584,268));
- {const b=addBox(mail,2.5,1.6,1.7,BONE,new THREE.Vector3(0,.8,0));
-  const p=new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.3),new THREE.MeshBasicMaterial({map:mailTex()}));p.position.set(0,.85,.86);mail.add(p);
-  led(mail,new THREE.Vector3(-1,.25,.88),0);}
+ {const ap=appliance(M,{w:2.6,h:1.7,d:1.7,face:mailTex(),faceW:1.05,faceH:1.05,leds,light:true});mail.add(ap);mail.userData.mats.push(ap.userData.body.material)}
+ // ===== ядро сети =====
  const core3=group('core',W(546,489));
- {addBox(core3,4.4,.85,1.5,STEEL,new THREE.Vector3(0,.43,0));
-  for(let i=0;i<12;i++){addBox(core3,.2,.2,.05,0x0d0e10,new THREE.Vector3(-1.9+i*.345,.5,.77),{edge:false,cast:false});led(core3,new THREE.Vector3(-1.9+i*.345,.22,.78),i%4===3?2:0)}}
+ {const sw=switchBox(M,{w:4.4,h:.9,d:1.5,ports:14,leds});core3.add(sw);core3.userData.mats.push(sw.userData.body.material)}
 
  // ===== рабочие станции и SOC =====
  const ws=group('ws',W(790,512));
- [[-1.4,-1.1],[.9,-1.4],[-.9,1.0],[1.5,.8]].forEach(([x,z],i)=>{
-  addBox(ws,1.7,1.1,.12,BONE,new THREE.Vector3(x,1.05,z),{ow:1.4}).rotation.x=-.12;
-  const s=new THREE.Mesh(new THREE.PlaneGeometry(1.5,.9),new THREE.MeshBasicMaterial({color:0x1d2226}));s.position.set(x,1.07,z+.075);s.rotation.x=-.12;ws.add(s);
-  addBox(ws,.2,.5,.2,STEEL,new THREE.Vector3(x,.28,z-.05),{edge:false});addBox(ws,.9,.07,.55,STEEL,new THREE.Vector3(x,.04,z),{edge:false});
- });
+ [[-1.4,-1.1],[.9,-1.4],[-.9,1.0],[1.5,.8]].forEach(([x,z],i)=>{const mo=monitor(M,{w:1.7,h:1.05,color:0x1b2b33});mo.position.set(x,0,z);ws.add(mo)});
  const soc=group('soc',W(860,414));
- const socScreens=[];
- {addBox(soc,6,.2,1.6,STEEL,new THREE.Vector3(0,.5,.4),{ow:1.2});
-  [-2,0,2].forEach((x,i)=>{
-   addBox(soc,1.8,1.2,.12,BONE,new THREE.Vector3(x,1.45+(i===1?.15:0),0));
-   const tex=canvasTex(256,160,(g,w,h)=>socDraw(g,w,h,false,0));const m=new THREE.MeshBasicMaterial({map:tex,toneMapped:false});
-   const s=new THREE.Mesh(new THREE.PlaneGeometry(1.62,1.02),m);s.position.set(x,1.45+(i===1?.15:0),.075);soc.add(s);socScreens.push(s);
-  });}
+ const socTexs=[0,1,2].map(()=>canvasTex(256,160,(g,w,h)=>socDraw(g,w,h,false,0)));
+ const desk=socDesk(M,{screens:socTexs});desk.position.set(0,-.3,0);soc.add(desk);
+ const socScreens=desk.userData.screens;
  let socLit=false,socT=0,socAcc=0;
 
  // ===== слоты =====
@@ -193,9 +180,8 @@ export function createNetwork(parent,{quality=1}={}){
    const a=new THREE.Mesh(new THREE.BoxGeometry(.8,.08,.14),bm);a.position.set(-sx*.4,0,0);const c=new THREE.Mesh(new THREE.BoxGeometry(.14,.08,.8),bm);c.position.set(0,0,-sz*.4);b.add(a,c);b.position.set(sx*1.05,.17,sz*1.05);open.add(b);chev.push(b)});
   // установленное средство
   const placed=new THREE.Group();placed.visible=false;g.add(placed);
-  const ap=new THREE.Mesh(plateGeo,toon(0xe4dfd3));ap.castShadow=true;ap.position.y=.4;placed.add(ap);outline(ctx,ap,OL,2,1);
-  const face=new THREE.Mesh(new THREE.PlaneGeometry(1.3,.65),new THREE.MeshBasicMaterial({map:plateTex(tools[s.id].name,tools[s.id].product)}));face.position.set(0,.42,.56);placed.add(face);
-  const strip=new THREE.Mesh(new THREE.BoxGeometry(1.2,.05,.05),glow(.5,2.2,1.4));strip.position.set(0,.83,.3);placed.add(strip);
+  const apl=appliance(M,{w:1.7,h:.95,d:1.2,face:labelTex(tools[s.id].name,tools[s.id].product),faceW:1.2,faceH:.6,leds});apl.userData.face.position.x=.14;placed.add(apl);
+  const strip=new THREE.Mesh(new THREE.BoxGeometry(1.5,.04,.04),glowMat(.4,2,1.3));strip.position.set(0,.97,.5);placed.add(strip);
   const dome=new THREE.Mesh(new THREE.SphereGeometry(1,56,28,0,Math.PI*2,0,Math.PI/2),new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
    uniforms:{uTime:{value:0},uR:{value:1},uScan:{value:-1},uColor:{value:new THREE.Color(.35,1.5,1.0)},uHit:{value:[0,1,2,3].map(()=>new THREE.Vector4(0,1,0,-1))}},vertexShader:domeShader.vertex,fragmentShader:domeShader.fragment}));
   dome.visible=false;g.add(dome);
@@ -241,19 +227,24 @@ export function createNetwork(parent,{quality=1}={}){
  }
 
  // ===== камера =====
- const cam={pos:new THREE.Vector3(-8,64,18),tgt:new THREE.Vector3(1.5,0,.5),fov:30,ox:-262,oy:10};
+ const cam={pos:new THREE.Vector3(-30,34,52),tgt:new THREE.Vector3(1.2,0,.4),fov:36,ox:-262,oy:10};
  const presets={
   attract:{pos:new THREE.Vector3(-22,10.5,27.5),tgt:new THREE.Vector3(2.8,.8,.2),fov:30,ox:-440,oy:-30},
-  play:{pos:new THREE.Vector3(-4,24,31),tgt:new THREE.Vector3(.8,0,.6),fov:30,ox:-262,oy:10}
+  play:{pos:new THREE.Vector3(-4,24,31),tgt:new THREE.Vector3(.8,0,.6),fov:30,ox:-262,oy:10},
+  pre:{pos:new THREE.Vector3(-30,34,52),tgt:new THREE.Vector3(1.2,0,.4),fov:36,ox:-262,oy:10}
  };
- let target=presets.play;
- api.setMode=m=>{api.mode=m;target=presets[m]};
+ // переходы камеры — по времени с плавным разгоном и торможением (кран с высоты в рабочий ракурс)
+ let target=presets.pre,from=null,tt=1,dur=1;
+ api.mode='pre';
+ api.setMode=m=>{if(!presets[m]||api.mode===m)return;api.mode=m;target=presets[m];
+  from={pos:cam.pos.clone(),tgt:cam.tgt.clone(),fov:cam.fov,ox:cam.ox,oy:cam.oy};tt=0;dur=m==='play'?2.2:1.6};
  api.setPointer=(x,y)=>{api.pointer.x=x;api.pointer.y=y};
  camera.position.copy(cam.pos);
  const look=new THREE.Vector3();
 
  // ===== API слотов =====
- api.setSlotsVisible=v=>{api.slotsVisible=v;for(const id in slotObj)slotObj[id].g.visible=v||slotObj[id].state==='placed'};
+ api.setSlotsVisible=v=>{const was=api.slotsVisible;api.slotsVisible=v;let i=0;
+  for(const id in slotObj){const so=slotObj[id];so.g.visible=v||so.state==='placed';if(v&&!was&&so.state!=='placed'){so.pop=-.35-i*.11;so.open.scale.setScalar(.001)}i++}};
  api.setArmed=id=>{for(const k in slotObj)slotObj[k].armed=!!id&&slotObj[k].state!=='placed'};
  api.setHover=id=>{for(const k in slotObj)slotObj[k].hover=k===id&&slotObj[k].state!=='placed'};
  api.setWrong=id=>{if(id&&slotObj[id]){slotObj[id].wrong=1;ctx.kick(.12);ctx.flashRed(.07)}};
@@ -277,10 +268,11 @@ export function createNetwork(parent,{quality=1}={}){
  let dust=0,streamAcc=0,ringT=0,punch=0;
  ctx.add((dt,t)=>{
   // камера
-  const e=1-Math.exp(-dt*1.6);
-  cam.pos.lerp(target.pos,e);cam.tgt.lerp(target.tgt,e);cam.fov=lerp(cam.fov,target.fov,e);cam.ox=lerp(cam.ox,target.ox,e);cam.oy=lerp(cam.oy,target.oy,e);
+  if(from&&tt<1){tt=Math.min(1,tt+dt/dur);const e=1-Math.pow(1-tt,4);
+   cam.pos.lerpVectors(from.pos,target.pos,e);cam.tgt.lerpVectors(from.tgt,target.tgt,e);cam.fov=lerp(from.fov,target.fov,e);cam.ox=lerp(from.ox,target.ox,e);cam.oy=lerp(from.oy,target.oy,e)}
+  else if(!from){cam.pos.copy(target.pos);cam.tgt.copy(target.tgt);cam.fov=target.fov;cam.ox=target.ox;cam.oy=target.oy}
   const sway=api.mode==='attract'?.35:0;
-  camera.position.set(cam.pos.x+Math.sin(t*.12)*1.3*sway+api.pointer.x*.9*sway,cam.pos.y+Math.sin(t*.17)*.35+api.pointer.y*-.4*sway,cam.pos.z+Math.cos(t*.1)*.8*sway);
+  camera.position.set(cam.pos.x+Math.sin(t*.12)*1.3*sway+api.pointer.x*.9*sway,cam.pos.y+Math.sin(t*.17)*.35*sway+api.pointer.y*-.4*sway,cam.pos.z+Math.cos(t*.1)*.8*sway);
   const sh=ctx.fx.shake;if(sh>.001){camera.position.x+=(Math.random()-.5)*sh*.5;camera.position.y+=(Math.random()-.5)*sh*.35}
   look.copy(cam.tgt);camera.lookAt(look);
   punch*=Math.pow(.02,dt);camera.fov=cam.fov-punch*2.6;
@@ -294,18 +286,19 @@ export function createNetwork(parent,{quality=1}={}){
   // поток ботов из улья к шлюзу
   // атмосфера
   // пламя
-  gw.userData.flame.scale.setScalar(2.9);
+  {const on=!!api.placed.ngfw,fm=gw.userData.fence;fm.uniforms.uTime.value=t;(gw.userData.bands||[]).forEach(b=>{b.uniforms.uTime.value=t;b.uniforms.uColor.value.copy(fm.uniforms.uColor.value);b.uniforms.uA.value=fm.uniforms.uA.value});const tc=on?[.3,1.5,1.0]:[1.8,.16,.07];fm.uniforms.uColor.value.lerp(new THREE.Color(...tc),1-Math.exp(-dt*4));gw.userData.rail.color.lerp(new THREE.Color(tc[0]*1.2,tc[1]*1.2,tc[2]*1.2),1-Math.exp(-dt*4));fm.uniforms.uA.value=lerp(fm.uniforms.uA.value,on?.5:.85+Math.sin(t*3)*.1+(gw.userData.flash||0)*.8,1-Math.exp(-dt*8))}
   // светодиоды
   for(const l of leds){const b=Math.sin(t*(.6+l.ph*.1)+l.ph)>-.4?1:.45;l.m.material.color.setRGB(l.c[0]*b,l.c[1]*b,l.c[2]*b)}
   // вспышки устройств
-  for(const n in api.dev){const g=api.dev[n];if(g.userData.flash>0){g.userData.flash=Math.max(0,g.userData.flash-dt*1.6);const f=g.userData.flash;g.scale.setScalar(1+f*.05);
-   g.userData.mats.forEach(m=>m.color.setHex(OL).lerp(new THREE.Color(PAL.red),Math.min(1,f*1.6)))}}
+  for(const n in api.dev){const g=api.dev[n];if(g.userData.flash>0){g.userData.flash=Math.max(0,g.userData.flash-dt*2.6);const f=g.userData.flash;if(n!=='gw')g.scale.setScalar(1+f*.05);
+   g.userData.mats.forEach(m=>{if(m.uniforms)return;setAccent(m,0xfc3e24,Math.min(1,f*1.6)*.3)})}}
   // экраны SOC
   socAcc+=dt;if(socAcc>.4){socAcc=0;socT+=.9;socScreens.forEach((s,i)=>{const c=s.material.map.image;socDraw(c.getContext('2d'),c.width,c.height,socLit,socT+i*1.7);s.material.map.needsUpdate=true})}
 
   // слоты
   for(const id in slotObj){
    const so=slotObj[id];if(!so.g.visible)continue;
+   if(so.pop!=null&&so.pop<1){so.pop+=dt*2.4;const k=Math.max(0,Math.min(1,so.pop));so.open.scale.setScalar(Math.max(.001,ease.back(k)));if(so.pop>0&&so.pop-dt*2.4<=0){rings.fire(so.g.position.clone().setY(.12),[2.2,.25,.1],2.4,.6,true)}}
    if(so.state==='open'){
     const hov=so.hover,arm=so.armed;
     const cr=hov?[2.8,2.4,.5]:arm?[2.8,1.8,.35]:[2.7,.12,.05];

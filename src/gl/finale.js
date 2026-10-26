@@ -1,5 +1,6 @@
 import {THREE,toon,glow,outline,sprite,hdr,ease,lerp,panelScene,box,OL,BONE,STEEL} from './core';
 import {domeShader} from './network';
+import {mats,rack,switchBox,appliance,monitor,rbox,mesh} from './kit';
 
 // Финал: большой купол защиты над миниатюрной сетью; по нему бьют красные атаки
 export function createFinale(parent,{quality=1}={}){
@@ -9,13 +10,14 @@ export function createFinale(parent,{quality=1}={}){
  const R=6.2;
  // миниатюра сети
  const town=new THREE.Group();scene.add(town);
- box(ctx,town,9,.25,6,0x2f343c,[0,.12,0],{ow:1.4});
- [[-2.4,-1.4,1.5,3.2],[-.6,-1.6,1.3,2.5],[1.4,-1.2,2,1.5],[-1.8,1.4,3.6,.8],[2.4,1.4,1.6,1.4]].forEach(([x,z,w,h],i)=>{
-  box(ctx,town,w*.6,h,w*.5,i%2?STEEL:BONE,[x,h/2+.25,z]);
-  const l=new THREE.Mesh(new THREE.BoxGeometry(.12,.12,.05),glow(.35,1.9,1.1));l.position.set(x+w*.18,h*.6,z+w*.26);town.add(l);
- });
+ const M=mats();
+ mesh(rbox(9,.25,6,.08),new THREE.MeshStandardMaterial({color:0x1f2329,roughness:.4,metalness:.6}),town,[0,.12,0]);
+ [[-2.6,-1.4,1.3,3.2,7],[-1.2,-1.5,1.1,2.6,5],[.1,-1.4,1.1,2.9,6]].forEach(([x,z,w,h,u])=>{const rk=rack(M,{w,h,d:1,units:u});rk.position.set(x,.25,z);town.add(rk)});
+ {const sw=switchBox(M,{w:3,h:.6,d:1.1,ports:10});sw.position.set(1.9,.25,-1.2);town.add(sw)}
+ {const ap=appliance(M,{w:1.8,h:1.1,d:1.2,light:true});ap.position.set(-1.6,.25,1.5);town.add(ap)}
+ [[1,1.5],[2.6,1.3]].forEach(([x,z])=>{const mo=monitor(M,{w:1.3,h:.8,color:0x1b2b33});mo.position.set(x,.25,z);town.add(mo)});
  const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
-  uniforms:{uTime:{value:0},uR:{value:R},uColor:{value:new THREE.Color(.18,.75,.52)},uHit:{value:[0,1,2,3].map(()=>new THREE.Vector4(0,1,0,-1))}},vertexShader:domeShader.vertex,fragmentShader:domeShader.fragment});
+  uniforms:{uTime:{value:0},uR:{value:R},uScan:{value:-1},uColor:{value:new THREE.Color(.18,.75,.52)},uHit:{value:[0,1,2,3].map(()=>new THREE.Vector4(0,1,0,-1))}},vertexShader:domeShader.vertex,fragmentShader:domeShader.fragment});
  const dome=new THREE.Mesh(new THREE.SphereGeometry(R,72,36,0,Math.PI*2,0,Math.PI/2),mat);scene.add(dome);
  const base=new THREE.Mesh(new THREE.TorusGeometry(R,.05,8,128),glow(.4,1.8,1.2));base.rotation.x=Math.PI/2;base.position.y=.05;scene.add(base);
  // атаки

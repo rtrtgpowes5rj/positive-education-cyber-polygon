@@ -1,4 +1,5 @@
 import {THREE,toon,glow,outline,sprite,hdr,ease,lerp,labelSprite,panelScene,box,tubeAlong,canvasTex,OL,BONE,STEEL} from './core';
+import {mats,rack,appliance,monitor,rbox,mesh} from './kit';
 
 const RED=[1.9,.16,.07],MINT=[.4,1.6,1.1],AMB=[2.0,1.3,.25];
 const mat=(c,x={})=>glow(c[0],c[1],c[2],x);
@@ -17,7 +18,7 @@ function cardTex(code,src,tone){
 // 3D-доска расследования: хосты и связи — вверху, четыре площадки «этапов» — внизу.
 // События перетаскиваются на площадки (или выбираются кликом).
 export function createAttackBoard(parent,{quality=1,stages=[]}={}){
- const ctx=panelScene(parent,{quality,pos:[0,19,13.5],look:[.3,0,-2.6],fov:42,sway:0,bloom:[0.4,0.45,0.92]});
+ const ctx=panelScene(parent,{quality,pos:[0,18,12.5],look:[.3,0,-2.4],fov:42,sway:0,bloom:[0.4,0.45,0.92]});
  const {scene,camera}=ctx;const sp=ctx.sparks,rg=ctx.rings;
  const api={ctx,host:null,revealed:false,cut:false,hoverPad:-1,armed:false,bad:[]};
 
@@ -25,17 +26,19 @@ export function createAttackBoard(parent,{quality=1,stages=[]}={}){
  const defs={
   'WS-114':{x:-6.4,z:-2.6,c:BONE,main:true},'WS-087':{x:-6.4,z:-9.0,c:STEEL},'DC-01':{x:-1.6,z:-9.0,c:BONE,main:true},'SRV-FILE':{x:-1.6,z:-2.6,c:BONE,main:true},'SRV-UPD':{x:-1.6,z:-5.8,c:STEEL}
  };
- const nodes={};
+ const nodes={},M=mats(),kl=[];
  Object.entries(defs).forEach(([id,d])=>{
   const g=new THREE.Group();g.position.set(d.x,0,d.z);scene.add(g);
-  const m=box(ctx,g,1.8,.9,1.3,d.c,[0,.45,0]);
-  if(id.startsWith('WS'))box(ctx,g,1.2,.7,.08,d.c,[0,1.2,-.3]);
+  let dev;
+  if(id.startsWith('WS')){dev=new THREE.Group();mesh(rbox(1.9,.1,1.2,.04),M.frame,dev,[0,.05,0]);const mo=monitor(M,{w:1.55,h:.95,color:id==='WS-114'?0x2a1a1a:0x1b2b33});mo.position.set(0,0,-.1);mo.scale.setScalar(.9);dev.add(mo);dev.userData.body=mo.userData.body}
+  else dev=appliance(M,{w:1.9,h:1.05,d:1.4,leds:kl,light:true});
+  dev.scale.setScalar(1.18);g.add(dev);const m=dev.userData.body;m.userData.ol=outline(ctx,m);
   const lab=labelSprite(id,{size:.8,font:'700 34px sans-serif'});lab.position.set(0,2.2,0);g.add(lab);
   const ring=new THREE.Mesh(new THREE.TorusGeometry(1.4,.05,8,48),mat(AMB));ring.rotation.x=Math.PI/2;ring.position.y=.06;ring.visible=false;g.add(ring);
   nodes[id]={g,m,ring,lab};
  });
  const srv=new THREE.Group();srv.position.set(5.2,0,-3.4);scene.add(srv);
- for(let i=0;i<6;i++){box(ctx,srv,1.0,1.5+(i%2)*.4,1.0,BONE,[(i%3)*1.6-1.6,(1.5+(i%2)*.4)/2,(i<3?-1.4:1.4)])}
+ for(let i=0;i<6;i++){const rk=rack(M,{w:1.0,h:1.6+(i%2)*.4,d:1.0,units:4,leds:kl});rk.position.set((i%3)*1.6-1.6,0,(i<3?-1.4:1.4));srv.add(rk)}
  const sl=labelSprite('6 серверов',{size:.8,font:'700 34px sans-serif'});sl.position.set(0,3.4,0);srv.add(sl);
  const ringS=new THREE.Mesh(new THREE.TorusGeometry(3.2,.05,8,48),mat(AMB));ringS.rotation.x=Math.PI/2;ringS.position.y=.06;ringS.visible=false;srv.add(ringS);
  nodes['6 хостов']={g:srv,ring:ringS};
@@ -61,7 +64,7 @@ export function createAttackBoard(parent,{quality=1,stages=[]}={}){
   const g=new THREE.Group();g.position.set(x,0,padZ);scene.add(g);
   const base=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.25,.2,40),toon(0x2a2e35));base.position.y=.11;base.receiveShadow=true;g.add(base);outline(ctx,base,0x80858f,1.6,.9,30);
   const ring=new THREE.Mesh(new THREE.TorusGeometry(.95,.04,8,64),mat([.35,.4,.55]));ring.rotation.x=Math.PI/2;ring.position.y=.26;g.add(ring);
-  const num=labelSprite(String(i+1),{size:1.5,font:'800 64px sans-serif',color:'#6f7480'});num.scale.set(1.5,1.5,1);num.position.set(0,.5,0);g.add(num);
+  const num=labelSprite(String(i+1),{size:1.5,font:'800 64px sans-serif',color:'#6f7480',pill:false});num.scale.set(1.5,1.5,1);num.position.set(0,.5,0);g.add(num);
   const title=labelSprite(stages[i]||'',{size:.85,font:'700 32px sans-serif',color:'#c4c0b6'});title.position.set(0,.3,1.9);g.add(title);
   const beam=new THREE.Mesh(new THREE.CylinderGeometry(.5,.62,2.6,32,1,true),new THREE.MeshBasicMaterial({color:hdr(1.2,.9,.2),transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,side:THREE.DoubleSide}));beam.position.y=2.2;g.add(beam);
   return{g,base,ring,num,title,beam,card:null,cardK:0,id:null,k:0,bad:0};
@@ -102,6 +105,7 @@ export function createAttackBoard(parent,{quality=1,stages=[]}={}){
 
  const tmpC=new THREE.Color();
  ctx.add((dt,t)=>{
+  for(const l of kl){const b=Math.sin(t*(.6+l.ph*.1)+l.ph)>-.4?1:.45;l.m.material.color.setRGB(l.c[0]*b,l.c[1]*b,l.c[2]*b)}
   // подсветка хоста выбранного события
   for(const id in nodes){const n=nodes[id];if(!n.ring)continue;const on=api.host===id;n.ring.visible=on;if(on){n.ring.rotation.z+=dt;n.ring.scale.setScalar(1+Math.sin(t*5)*.06)}}
   // площадки

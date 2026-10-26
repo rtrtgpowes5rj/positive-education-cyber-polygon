@@ -2,6 +2,7 @@ import React,{useEffect,useRef,useSyncExternalStore} from 'react';
 import {createNetwork,W} from './network';
 import {slots,tools} from '../scene/topology';
 import {pool} from '../data';
+import {Reveal} from '../ui';
 
 // небольшое хранилище: Perimeter управляет сценой, не владея ею
 const state={mode:'attract',slotsVisible:false,placed:{},armed:false,hover:null,wrong:null,api:null,listeners:new Set()};
@@ -51,11 +52,12 @@ export default function NetStage({quality=1}){
  return <div className="net-stage">
   <div className="gl-host" ref={host}/>
   <div className="net-labels">
-   {s.mode==="play"&&<div className="pool-card" ref={poolRef}><b>пул угроз · 24/7</b>{pool.map(t=><span key={t}>{t}</span>)}</div>}
+   {s.mode==="play"&&<div className="pool-anchor" ref={poolRef}><Reveal className="pool-rv" panelClass="pool-panel" label={<><i/>пул угроз<b>{pool.length}</b></>}>
+    <b className="rv-i rv-title">Кто атакует 24/7</b>{pool.map(t=><span key={t} className="rv-i pool-row">{t}</span>)}</Reveal></div>}
    {s.mode==="play"&&<div className="inet-label hand" ref={inetRef}>интернет</div>}
    {s.slotsVisible&&slots.map(sl=>{const placed=s.placed[sl.id],t=tools[sl.id];
     return <div key={sl.id} className={'slot-label'+(placed?' placed':'')} ref={e=>labels.current[sl.id]=e}>
-     <b>{sl.label}</b><small>{placed?`${t.name} · ${t.product}`:sl.note}</small></div>})}
+     <b>{sl.label}</b>{(placed||s.armed||s.hover===sl.id)&&<small key={placed?'p':'n'}>{placed?`${t.name} · ${t.product}`:sl.note}</small>}</div>})}
   </div>
  </div>;
 }

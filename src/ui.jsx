@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useRef,useState} from 'react';
+import React,{useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {gsap} from 'gsap';
 import qrcode from 'qrcode-generator';
 import {Sk,d,C} from './sketch';
@@ -18,11 +18,54 @@ export const Btn=({children,className='',...p})=><button className={'btn '+class
 // ---------- Окно «настоящего» ПО ----------
 export function Win({title,sub,right,className='',children}){
  const ref=useRef();
- useEffect(()=>{if(reduced())return;gsap.from(ref.current,{rotateY:-9,x:70,opacity:0,transformPerspective:1500,transformOrigin:'left center',duration:1,ease:'power3.out',delay:.25,clearProps:'transform,opacity'})},[]);
+ useLayoutEffect(()=>{if(reduced())return;gsap.from(ref.current,{rotateY:-9,x:70,opacity:0,transformPerspective:1500,transformOrigin:'left center',duration:1,ease:'power3.out',delay:.25,clearProps:'transform,opacity'})},[]);
  return <section className={'win '+className} ref={ref}>
   <header><i className="dots"><b/><b/><b/></i><span className="wt">{title}</span>{sub&&<span className="ws">{sub}</span>}<span className="wr">{right}</span></header>
   <div className="wb">{children}</div>
  </section>;
+}
+
+// ---------- Раскрывашка: чип по касанию перетекает в панель ----------
+// Порт идеи morphing-popover (Motion Primitives): панель раскрывается из прямоугольника чипа
+// (clip-path), содержимое поднимается с шагом 0,05 с; закрытие вдвое быстрее, касание снаружи — закрыть.
+const rectIn=(chip,panel)=>{
+ const c=chip.getBoundingClientRect(),p=panel.getBoundingClientRect(),k=p.width/(panel.offsetWidth||1)||1,m=v=>Math.max(0,v/k);
+ return`inset(${m(c.top-p.top)}px ${m(p.right-c.right)}px ${m(p.bottom-c.bottom)}px ${m(c.left-p.left)}px round 12px)`;
+};
+export function Reveal({label,className='',panelClass='',open:ctl,onOpen,children,closeLabel='Свернуть'}){
+ const [own,setOwn]=useState(false),open=ctl??own;
+ const wrap=useRef(),chip=useRef(),panel=useRef(),tl=useRef();
+ const set=v=>{setOwn(v);onOpen&&onOpen(v)};
+ useLayoutEffect(()=>{
+  const pn=panel.current;if(!pn)return;tl.current&&tl.current.kill();
+  if(open){
+   pn.style.visibility='visible';
+   if(reduced()){pn.style.clipPath='none';return}
+   tl.current=gsap.timeline()
+    .fromTo(pn,{clipPath:rectIn(chip.current,pn)},{clipPath:'inset(0px 0px 0px 0px round 16px)',duration:.55,ease:'expo.out'})
+    .fromTo(pn.querySelectorAll('.rv-i'),{y:12,opacity:0},{y:0,opacity:1,duration:.4,stagger:.05,ease:'power3.out',clearProps:'transform,opacity'},.08);
+  }else{
+   if(pn.style.visibility!=='visible')return;
+   if(reduced()){pn.style.visibility='hidden';return}
+   tl.current=gsap.timeline({onComplete:()=>{pn.style.visibility='hidden'}})
+    .to(pn,{clipPath:rectIn(chip.current,pn),duration:.28,ease:'power2.in'});
+  }
+ },[open]);
+ useEffect(()=>{
+  if(!open)return;
+  const out=e=>{if(wrap.current&&!wrap.current.contains(e.target))set(false)};
+  const esc=e=>{if(e.key==='Escape')set(false)};
+  document.addEventListener('pointerdown',out);addEventListener('keydown',esc);
+  return()=>{document.removeEventListener('pointerdown',out);removeEventListener('keydown',esc)};
+ },[open]);
+ useEffect(()=>()=>tl.current&&tl.current.kill(),[]);
+ return <div className={'rv '+className+(open?' is-open':'')} ref={wrap}>
+  <button type="button" className="rv-chip" ref={chip} aria-expanded={open} onClick={()=>set(!open)}>{label}</button>
+  <div className={'rv-panel '+panelClass} ref={panel} style={{visibility:'hidden'}} aria-hidden={!open}>
+   <button type="button" className="rv-x" onClick={()=>set(false)} aria-label={closeLabel}><svg viewBox="0 0 20 20" width="18" height="18"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg></button>
+   {children}
+  </div>
+ </div>;
 }
 
 // ---------- Диалог с коллегой ----------
@@ -30,8 +73,9 @@ let msgId=0;
 export const hintStat={n:0};
 export function useThread(level){
  const [hi,setHi]=useState(0);
- const [msgs,setMsgs]=useState(()=>level.chat.map((text,i)=>({id:++msgId,who:level.who,text,tone:'',delay:500+i*1700})));
- const say=(text,tone='',who)=>setMsgs(m=>[...m,{id:++msgId,who:who||level.who,text,tone,delay:0}].slice(-6));
+ // вступление коллеги — одна реплика из двух абзацев: в кадре одна мысль, её успевают дочитать
+ const [msgs,setMsgs]=useState(()=>[{id:++msgId,who:level.who,text:level.chat.join('\n'),tone:'',delay:700}]);
+ const say=(text,tone='',who)=>setMsgs(m=>[...m,{id:++msgId,who:who||level.who,text,tone,delay:0}].slice(-12));
  const hint=()=>{if(hi>=level.hints.length)return;setHi(hi+1);hintStat.n++;say(level.hints[hi],'hint')};
  return{msgs,say,hint,hintsLeft:level.hints.length-hi};
 }
@@ -59,24 +103,60 @@ const Tick=({on,k})=><svg className={'tick'+(on?' on':'')} viewBox="0 0 28 28" w
  <Sk className="chk" of={d.lines('ck'+k,[[6,14],[12,20],[27,3]],{stroke:C.mint,strokeWidth:3.2,roughness:.7})}/>
 </svg>;
 
+// Реплика коллеги: в кадре всегда одна — новая поднимается, прежняя уходит вверх; вся переписка — в «Истории»
+const Bubble=({m,cls})=><div className={'coach-msg '+m.tone+' '+cls}>
+ <div className="cm-who"><Avatar who={m.who} size={40}/><small>{people[m.who].name}<em>{people[m.who].role}</em></small></div>
+ <p><Typed text={m.text} delay={m.delay}/></p>
+</div>;
+function Coach({thread}){
+ const ms=thread.msgs,cur=ms[ms.length-1],prev=ms.length>1?ms[ms.length-2]:null;
+ return <div className="coach">
+  {ms.length>1&&<Reveal className="coach-hist" panelClass="hist-panel" label={<><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>История<b>{ms.length}</b></>}>
+   <div className="rv-i rv-title">Переписка</div>
+   <div className="hist-list">{ms.map(m=><div key={m.id} className={'rv-i hist-msg '+m.tone}><small>{people[m.who].name}</small><p>{m.text}</p></div>)}</div>
+  </Reveal>}
+  <div className="coach-stack">
+   {prev&&<Bubble key={prev.id} m={prev} cls="leave"/>}
+   <Bubble key={cur.id} m={cur} cls={ms.length>1?'enter':'first'}/>
+  </div>
+ </div>;
+}
+
 export function Briefing({level,thread,done=[]}){
- const ref=useRef(),end=useRef();
- useEffect(()=>{if(reduced())return;gsap.from(ref.current.querySelectorAll('.b-in'),{y:22,opacity:0,duration:.6,stagger:.08,ease:'power3.out',delay:.1})},[]);
- useEffect(()=>{if(end.current)end.current.scrollTop=end.current.scrollHeight},[thread.msgs]);
+ const ref=useRef();
+ useLayoutEffect(()=>{if(reduced())return;const tw=gsap.fromTo(ref.current.querySelectorAll('.b-in'),{y:22,opacity:0},{y:0,opacity:1,duration:.6,stagger:.09,ease:'power3.out',delay:.1,clearProps:'transform,opacity'});return()=>tw.revert()},[]);
+ const nDone=done.filter(Boolean).length;
  return <aside className="brief" ref={ref}>
   <div className="b-in lvl-tag"><span>Уровень {level.code}</span><i/>{level.name}</div>
   <h1 className="b-in">{level.title}
    <svg className="h-under" viewBox="0 0 300 14" preserveAspectRatio="none"><Sk of={d.curve('hu'+level.id,[[4,8],[80,4],[160,10],[296,5]],{stroke:C.red,strokeWidth:3,roughness:1.3})}/></svg></h1>
-  {level.cheat&&<div className="b-in note-card"><b>{level.cheat.title}</b>{level.cheat.items.map(([k,v])=><div key={k}><em>{k}</em><span>{v}</span></div>)}</div>}
-  <div className="b-in chat" ref={end}>
-   {thread.msgs.map(m=><div key={m.id} className={'msg '+m.tone}>
-    <Avatar who={m.who}/>
-    <div><small>{people[m.who].name}<em>{people[m.who].role}</em></small><p><Typed text={m.text} delay={m.delay}/></p></div>
-   </div>)}
-  </div>
-  <button className="b-in hint-btn" disabled={!thread.hintsLeft} onClick={thread.hint}><i>?</i>{thread.hintsLeft?`Подсказка · −10 очков · осталось ${thread.hintsLeft}`:'Подсказки закончились'}</button>
+  <div className="b-in goals-head"><span>Задачи</span><b>{nDone}<em> / {level.goals.length}</em></b></div>
   <ul className="b-in goals">{level.goals.map((g,i)=><li key={g} className={done[i]?'on':''}><Tick on={done[i]} k={level.id+i}/>{g}</li>)}</ul>
+  <div className="b-in coach-wrap"><Coach thread={thread}/></div>
+  <div className="b-in dock">
+   <button className="hint-chip" disabled={!thread.hintsLeft} onClick={thread.hint}><i>?</i><span>{thread.hintsLeft?'Подсказка':'Подсказок нет'}<small>{thread.hintsLeft?`−10 очков · ещё ${thread.hintsLeft}`:'вы использовали все'}</small></span></button>
+   {level.cheat&&<Reveal className="cheat-rv" panelClass="cheat-panel" label={<><svg viewBox="0 0 22 22" width="20" height="20" aria-hidden="true"><path d="M5 3h9l4 4v12H5z M14 3v4h4 M8 11h7M8 15h5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round"/></svg><span>Шпаргалка<small>открыть</small></span></>}>
+    <b className="rv-i rv-title">{level.cheat.title}</b>
+    {level.cheat.items.map(([k,v])=><div key={k} className="rv-i cheat-row"><em>{k}</em><span>{v}</span></div>)}
+   </Reveal>}
+  </div>
  </aside>;
+}
+
+// ---------- Одометр: каждая цифра — лента 0…9, прокручивается и оседает (порт идеи Counter из React Bits) ----------
+const DIG='0123456789'.split('');
+function Digit({d,delay,dur}){
+ const ref=useRef(),cur=useRef(0);
+ useLayoutEffect(()=>{const el=ref.current;
+  if(reduced()){gsap.set(el,{yPercent:-d*10});cur.current=d;return}
+  const from=cur.current;el.classList.toggle('roll',from!==d);
+  const tw=gsap.fromTo(el,{yPercent:-from*10},{yPercent:-d*10,duration:dur,delay,ease:'expo.out',onComplete:()=>{el.classList.remove('roll')}});
+  cur.current=d;return()=>tw.kill()},[d]);
+ return <span className="odo-d"><span className="odo-s" ref={ref}>{DIG.map(c=><i key={c}>{c}</i>)}</span><span className="odo-sz">0</span></span>;
+}
+export function Odo({value,prefix='',delay=0,dur=1,className=''}){
+ const s=String(Math.max(0,Math.round(value||0))),n=s.length;
+ return <b className={'odo '+className} aria-label={prefix+s}>{prefix&&<span className="odo-p">{prefix}</span>}{s.split('').map((c,i)=><Digit key={n-i} d={+c} delay={delay+(n-1-i)*.07} dur={dur}/>)}</b>;
 }
 
 // ---------- QR ----------

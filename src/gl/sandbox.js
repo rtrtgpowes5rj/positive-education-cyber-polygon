@@ -1,4 +1,6 @@
-import {THREE,toon,glow,outline,sprite,hdr,ease,lerp,labelSprite,panelScene,box,OL,BONE,STEEL} from './core';
+import {THREE,toon,glow,outline,sprite,hdr,ease,lerp,labelSprite,panelScene,box,canvasTex,OL,BONE,STEEL} from './core';
+import {domeShader} from './network';
+import {mats,rbox,mesh} from './kit';
 
 const RED=[1.9,.16,.07],MINT=[.4,1.6,1.1],AMB=[2.0,1.3,.25],DIM=[.35,.38,.45];
 const mat=(c,x={})=>glow(c[0],c[1],c[2],x);
@@ -18,25 +20,36 @@ export function createAgentSandbox(parent,{quality=1,cb={},steps=[]}={}){
  const api={ctx,grant:{},hot:null,hover:null,pipe:null};
 
  // платформа и ядро
- const plat=new THREE.Mesh(new THREE.CylinderGeometry(3.3,3.5,.3,64),toon(0x2a2e35));plat.position.y=.15;plat.receiveShadow=true;scene.add(plat);outline(ctx,plat,0x80858f,1.6,.9,30);
+ const plat=new THREE.Mesh(new THREE.CylinderGeometry(3.3,3.5,.3,96),new THREE.MeshStandardMaterial({color:0x1f2329,roughness:.35,metalness:.7}));plat.position.y=.15;plat.receiveShadow=true;scene.add(plat);outline(ctx,plat,0x80858f,1.6,.9,30);
  const platRing=new THREE.Mesh(new THREE.TorusGeometry(2.9,.04,8,96),mat([.4,.8,.9]));platRing.rotation.x=Math.PI/2;platRing.position.y=.33;scene.add(platRing);
  const core=new THREE.Group();core.position.set(0,2.4,0);scene.add(core);
- const body=new THREE.Mesh(new THREE.IcosahedronGeometry(1.1,1),toon(0xe4dfd3));body.castShadow=true;core.add(body);outline(ctx,body,OL,2,1,18);
- const visor=new THREE.Mesh(new THREE.CapsuleGeometry(.2,.7,6,16),mat(MINT));visor.rotation.z=Math.PI/2;visor.position.set(0,.12,.98);core.add(visor);
- const halo=sprite(0x7fe0b5,5,.28);core.add(halo);
- const leg=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,1.6,8),toon(0x80858f));leg.position.y=-1.5;core.add(leg);
+ const M=mats();
+ const body=new THREE.Mesh(new THREE.SphereGeometry(1.05,64,48),new THREE.MeshPhysicalMaterial({color:0xe8ecf0,roughness:.22,metalness:.1,clearcoat:1,clearcoatRoughness:.08,sheen:.6,sheenColor:new THREE.Color(0x9fe6ff)}));body.castShadow=true;core.add(body);
+ const band=new THREE.Mesh(new THREE.TorusGeometry(1.07,.05,12,96),M.frame);band.rotation.x=Math.PI/2;core.add(band);
+ const orb=new THREE.Mesh(new THREE.TorusGeometry(1.55,.018,8,128),glow(.5,1.2,1.6));orb.rotation.x=1.25;core.add(orb);
+ const visor=new THREE.Mesh(new THREE.CapsuleGeometry(.16,.8,8,24),mat(MINT));visor.rotation.z=Math.PI/2;visor.position.set(0,.18,.93);core.add(visor);
+ const halo=sprite(0x7fe0b5,4.2,.22);core.add(halo);
+ const leg=new THREE.Mesh(new THREE.CylinderGeometry(.06,.16,1.6,16),M.steel);leg.position.y=-1.5;core.add(leg);
 
  // защитный купол «песочница»
- const domeMat=new THREE.MeshBasicMaterial({color:hdr(.3,1.4,1),transparent:true,opacity:.12,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,toneMapped:false});
- const wireMat=new THREE.MeshBasicMaterial({color:hdr(.3,1.4,1),wireframe:true,transparent:true,opacity:.34,toneMapped:false});
- const dome=new THREE.Mesh(new THREE.SphereGeometry(3.45,40,20,0,Math.PI*2,0,Math.PI/2),domeMat);dome.position.y=.3;
- const wire=new THREE.Mesh(new THREE.SphereGeometry(3.46,20,10,0,Math.PI*2,0,Math.PI/2),wireMat);dome.add(wire);scene.add(dome);
+ const domeMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+  uniforms:{uTime:{value:0},uR:{value:3.45},uScan:{value:-1},uColor:{value:new THREE.Color(.3,1.3,.9)},uHit:{value:[0,1,2,3].map(()=>new THREE.Vector4(0,1,0,-1))}},vertexShader:domeShader.vertex,fragmentShader:domeShader.fragment});
+ const dome=new THREE.Mesh(new THREE.SphereGeometry(3.45,72,36,0,Math.PI*2,0,Math.PI/2),domeMat);dome.position.y=.3;scene.add(dome);let domeHit=0;
 
  // порты прав
+ const icon=(draw)=>canvasTex(128,128,(g,w,h)=>{g.clearRect(0,0,w,h);g.strokeStyle='#fff';g.fillStyle='#fff';g.lineWidth=8;g.lineCap='round';g.lineJoin='round';draw(g)});
+ const iconTex={
+  read:icon(g=>{g.strokeRect(34,26,60,76);[46,62,78].forEach(y=>{g.beginPath();g.moveTo(46,y);g.lineTo(82,y);g.stroke()})}),
+  tests:icon(g=>{g.beginPath();g.moveTo(34,66);g.lineTo(56,88);g.lineTo(96,40);g.stroke()}),
+  net:icon(g=>{g.beginPath();g.arc(64,64,34,0,7);g.stroke();g.beginPath();g.ellipse(64,64,14,34,0,0,7);g.stroke();g.beginPath();g.moveTo(30,64);g.lineTo(98,64);g.stroke()}),
+  secrets:icon(g=>{g.strokeRect(38,58,52,40);g.beginPath();g.arc(64,58,16,Math.PI,0);g.stroke()}),
+  deploy:icon(g=>{g.beginPath();g.moveTo(64,28);g.lineTo(64,96);g.moveTo(40,52);g.lineTo(64,28);g.lineTo(88,52);g.stroke()})
+ };
  const mods=PERMS.map(p=>{
   const g=new THREE.Group();g.position.set(p.pos[0],0,p.pos[1]);scene.add(g);
   const base=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.25,.22,6),toon(0x2a2e35));base.position.y=.11;base.receiveShadow=true;g.add(base);outline(ctx,base,0x80858f,1.4,.9,30);
-  const blk=new THREE.Mesh(new THREE.CylinderGeometry(.82,.9,.95,6),toon(p.need?0xe4dfd3:0xd8b9a8,{emissive:0x050505}));blk.position.y=.7;blk.castShadow=true;g.add(blk);outline(ctx,blk,OL,2,1,30);
+  const blk=new THREE.Mesh(new THREE.CylinderGeometry(.82,.9,.95,6),new THREE.MeshStandardMaterial({color:p.need?0x2a2f36:0x2b2224,roughness:.3,metalness:.75}));blk.position.y=.7;blk.castShadow=true;g.add(blk);blk.userData.ol=outline(ctx,blk);
+  const cap=new THREE.Mesh(new THREE.CircleGeometry(.62,6),new THREE.MeshBasicMaterial({map:iconTex[p.id],color:0xffffff,transparent:true,toneMapped:false}));cap.rotation.x=-Math.PI/2;cap.rotation.z=Math.PI/6;cap.position.y=.48;blk.add(cap);
   blk.userData.id=p.id;
   const ring=new THREE.Mesh(new THREE.TorusGeometry(1.05,.04,8,48),mat(DIM));ring.rotation.x=Math.PI/2;ring.position.y=.26;g.add(ring);
   const led=new THREE.Mesh(new THREE.BoxGeometry(.7,.07,.07),mat(DIM));led.position.set(0,1.0,.88);g.add(led);
@@ -52,9 +65,9 @@ export function createAgentSandbox(parent,{quality=1,cb={},steps=[]}={}){
  // конвейер проверок (внизу): пять площадок
  const pads=[...Array(5)].map((_,i)=>{
   const g=new THREE.Group();g.position.set(-3.8+i*1.9,0,7.0);scene.add(g);
-  const b=new THREE.Mesh(new THREE.CylinderGeometry(.7,.76,.16,32),toon(0x2a2e35));b.position.y=.08;g.add(b);outline(ctx,b,0x80858f,1.2,.9,30);
+  const b=new THREE.Mesh(new THREE.CylinderGeometry(.7,.76,.16,48),new THREE.MeshStandardMaterial({color:0x1f2329,roughness:.35,metalness:.7}));b.position.y=.08;g.add(b);outline(ctx,b,0x80858f,1.2,.9,30);
   const ring=new THREE.Mesh(new THREE.TorusGeometry(.52,.035,8,40),mat(DIM));ring.rotation.x=Math.PI/2;ring.position.y=.2;g.add(ring);
-  const lab=labelSprite(steps[i]||String(i+1),{size:.56,font:'700 32px sans-serif',color:'#b8b4aa'});lab.position.set(0,.95,0);g.add(lab);
+  const lab=labelSprite(steps[i]||String(i+1),{size:.6,font:'700 32px sans-serif',color:'#c4c0b6'});lab.position.set(0,i%2?.15:1.05,i%2?1.15:0);g.add(lab);
   return{g,ring,st:0,k:0};
  });
  const pk=new THREE.Mesh(new THREE.OctahedronGeometry(.3),mat(AMB));pk.position.set(-5.2,.8,7.0);pk.visible=false;scene.add(pk);
@@ -95,8 +108,8 @@ export function createAgentSandbox(parent,{quality=1,cb={},steps=[]}={}){
   const tint=danger?RED:noNeed?AMB:MINT;
   tmp.setRGB(tint[0],tint[1],tint[2]);visor.material.color.lerp(tmp,1-Math.exp(-dt*8));
   halo.material.color.setRGB(tint[0]/2,tint[1]/2,tint[2]/2);
-  domeMat.color.lerp(tmp.setRGB(danger?1.5:.3,danger?.2:1.4,danger?.12:1),1-Math.exp(-dt*6));wireMat.color.copy(domeMat.color);
-  domeMat.opacity=lerp(domeMat.opacity,danger?.2:.12,1-Math.exp(-dt*6));
+  domeMat.uniforms.uTime.value=t;domeMat.uniforms.uColor.value.lerp(tmp.setRGB(danger?1.1:.3,danger?.14:1.3,danger?.08:.9),1-Math.exp(-dt*6));
+  if(danger&&t-domeHit>.9){domeHit=t;const v=new THREE.Vector3(Math.random()-.5,.6,Math.random()-.5).normalize();domeMat.uniforms.uHit.value[Math.floor(t)%4].set(v.x,v.y,v.z,t)}
   platRing.material.color.setRGB(tint[0]*.6,tint[1]*.6,tint[2]*.6);
   // порты
   for(const m of mods){
@@ -110,7 +123,7 @@ export function createAgentSandbox(parent,{quality=1,cb={},steps=[]}={}){
    m.beam.visible=m.k>.03;m.beam.position.copy(from).add(to).multiplyScalar(.5);m.beam.scale.set(1+m.hov*.5,len*m.k,1+m.hov*.5);m.beam.lookAt(to);m.beam.rotateX(Math.PI/2);
    m.beam.position.lerpVectors(from,to,m.k*.5);
    if(on&&risky&&Math.random()<dt*5)sp.emit(m.g.position.clone().setY(1.2),1,{speed:1.2,color:RED,size:.09,life:.7,gravity:1.4});
-   m.blk.material.emissive.setRGB(on&&risky?.28:.02,on&&risky?.02:.02,.02);
+   m.blk.material.emissive.setRGB(on&&risky?.22:.0,on&&risky?.02:.0,.0);m.blk.children[0].material.color.setRGB(col[0]*(on?1.2:.6),col[1]*(on?1.2:.6),col[2]*(on?1.2:.6));
   }
   // конвейер
   if(runT>=0){runT+=dt;pk.position.x=-5.2+runT*3.8;

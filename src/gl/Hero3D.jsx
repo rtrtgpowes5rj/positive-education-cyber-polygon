@@ -4,7 +4,7 @@ import {createHero,SOURCES} from './globe';
 export const hero={api:null};
 
 export default function Hero3D({quality=1,diving=false}){
- const host=useRef(),lab=useRef({}),[touched,setTouched]=useState(false),[spd,setSpd]=useState(0);
+ const host=useRef(),lockRef=useRef(),lab=useRef({}),[touched,setTouched]=useState(false),[spd,setSpd]=useState(0);
  useEffect(()=>{const t=setInterval(()=>{const a=hero.api;if(a)setSpd(Math.min(1,Math.max(0,(a.speed-.5)/6)))},120);return()=>clearInterval(t)},[]);
  useEffect(()=>{
   const api=createHero(host.current,{quality});hero.api=api;
@@ -31,6 +31,7 @@ export default function Hero3D({quality=1,diving=false}){
    for(const L of api.labels){const el=lab.current[L.id];if(!el)continue;
     const vis=L.show?Math.max(0,Math.min(1,(L.facing-.18)*4)):0;
     el.style.opacity=api.diving?0:vis;const fl=L.x>1420;el.style.transform=`translate(${L.x}px,${L.y}px)`+(fl?' translateX(-100%)':'');el.classList.toggle('flip',fl)}
+   if(lockRef.current&&api.diving){const t=api.targetScreen();lockRef.current.style.transform=`translate(${t.x}px,${t.y}px)`}
    raf=requestAnimationFrame(loop);
   };
   raf=requestAnimationFrame(loop);
@@ -41,7 +42,8 @@ export default function Hero3D({quality=1,diving=false}){
   <div className="net-labels">
    {SOURCES.filter(s=>s.label).map(s=><div key={s.id} className={'hero-tag'+(s.ai?' ai':'')} ref={e=>lab.current[s.id]=e}><i/><span>{s.label}</span></div>)}
   </div>
-  <div className={"hero-hint"+(touched?" gone":"")}><svg viewBox="0 0 120 70" aria-hidden="true"><path d="M8 52 C30 8 80 6 108 38" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"/><path d="M98 28 L109 39 L94 43" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg><span>покрутите планету</span><small>удерживайте — быстрее · два пальца — приблизить</small></div>
+  {diving&&<div className="lock" ref={lockRef} aria-hidden="true"><div className="lk-box"><i/><i/><i/><i/></div><div className="lk-txt"><span>захват цели</span><b>ваша сеть</b><small>55.75° N · 37.62° E · 18 активных угроз</small></div></div>}
+  <div className={"hero-hint"+(touched||diving?" gone":"")}><svg viewBox="0 0 120 70" aria-hidden="true"><path d="M8 52 C30 8 80 6 108 38" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"/><path d="M98 28 L109 39 L94 43" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg><span>покрутите планету</span><small>удерживайте — быстрее · два пальца — приблизить</small></div>
   <div className="hero-speed" style={{opacity:spd>.04?1:0}}><i style={{transform:`scaleX(${spd})`}}/></div>
  </div>;
 }

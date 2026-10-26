@@ -4,6 +4,7 @@ import {RenderPass} from 'three/examples/jsm/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/examples/jsm/postprocessing/OutputPass.js';
+import {studio,rbox} from './kit';
 import {SMAAPass} from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import {LineSegments2} from 'three/examples/jsm/lines/LineSegments2.js';
 import {LineSegmentsGeometry} from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
@@ -100,7 +101,7 @@ export function createStage(parent,{bg=0x0c0d0f,fog=0.0,bloom=[0.7,0.55,0.9],sha
   if(ctx.dead)return;
   const fx=ctx.fx;fx.shake*=Math.pow(0.002,dt);fx.ab*=Math.pow(0.01,dt);fx.flash*=Math.pow(0.02,dt);
   acc+=dt;frames++;if(acc>2.5){const avg=acc/frames;acc=0;frames=0;if(avg>0.045&&curDpr>0.8&&drops<2&&ctx.t<12){drops++;curDpr=Math.max(0.8,curDpr-0.3);renderer.setPixelRatio(curDpr);composer.setPixelRatio(curDpr)}}
-  finalPass.uniforms.uTime.value=ctx.t;finalPass.uniforms.uAb.value=0.0003+fx.ab*0.008;finalPass.uniforms.uFlash.value=fx.flash;
+  finalPass.uniforms.uTime.value=ctx.t;finalPass.uniforms.uAb.value=0.0003+fx.ab*0.0028;finalPass.uniforms.uFlash.value=fx.flash;
   if(!ctx.lost)composer.render(dt);
   raf=requestAnimationFrame(loop);
  };
@@ -117,14 +118,24 @@ export function gradientMap(){
  const d=new Uint8Array([70,130,200,255]);
  gradient=new THREE.DataTexture(d,4,1,THREE.RedFormat);gradient.minFilter=gradient.magFilter=THREE.NearestFilter;gradient.needsUpdate=true;return gradient;
 }
-export const toon=(color,extra={})=>new THREE.MeshToonMaterial({color,gradientMap:gradientMap(),...extra});
+// физически корректный материал вместо мультяшного: светлые цвета — матовый пластик, тёмные — анодированный металл
+export const toon=(color,extra={})=>{
+ const c=new THREE.Color(color),l=(c.r+c.g+c.b)/3;
+ const {gradientMap:_g,...rest}=extra;
+ const m=new THREE.MeshStandardMaterial({color,roughness:l>.5?.42:.38,metalness:l>.5?.12:.6,...rest});
+ m.userData.base=m.emissive.clone();return m;
+};
 export const glow=(r,g,b,extra={})=>new THREE.MeshBasicMaterial({color:hdr(r,g,b),toneMapped:false,...extra});
 
 // контур «пером»: плотные линии по рёбрам меша
-export function outline(ctx,mesh,color=PAL.ink,width=1.7,opacity=0.9,angle=28){
- const g=new LineSegmentsGeometry().fromEdgesGeometry(new THREE.EdgesGeometry(mesh.geometry,angle));
- const m=ctx.lineMat(color,width,opacity);
- const l=new LineSegments2(g,m);l.userData.isOutline=true;mesh.add(l);return l;
+// Раньше — чёрный контур «пером». Теперь контура нет: возвращаем «прокси», через который код по-прежнему
+// может подсветить объект цветом (setHex) — подсветка идёт свечением корпуса.
+const BASE_HEX=new Set([0x121316,0xece6da,0x80858f]);
+export function outline(ctx,mesh,color=PAL.ink){
+ const mt=Array.isArray(mesh.material)?mesh.material[0]:mesh.material;
+ if(mt&&mt.emissive&&!mt.userData.base)mt.userData.base=mt.emissive.clone();
+ const set=h=>{if(!mt||!mt.emissive)return;const b=mt.userData.base||new THREE.Color(0);if(BASE_HEX.has(h)){mt.emissive.copy(b);return}mt.emissive.copy(b).lerp(new THREE.Color(h),.42)};
+ return{material:{color:{setHex:set}},isProxy:true};
 }
 
 // ---------- текстуры ----------
@@ -209,13 +220,17 @@ export const ease={out3:t=>1-Math.pow(1-t,3),inOut:t=>t<.5?4*t*t*t:1-Math.pow(-2
 export const lerp=(a,b,t)=>a+(b-a)*t;
 
 // ---------- подписи в 3D ----------
-export function labelSprite(text,{color='#ece6da',size=1.6,font='700 40px sans-serif',bg=null,onTop=true}={}){
+export function labelSprite(text,{color='#ece6da',size=1.6,font='700 40px sans-serif',bg=null,onTop=true,pill=true}={}){
  const w=640,h=160,k=2; // текстура 2x: чёткий текст без «дрожания»
  const t=canvasTex(w,h,(g)=>{
   if(bg){g.fillStyle=bg;g.fillRect(0,0,w,h)}
   let px=parseInt(font.match(/(\d+)px/)[1])*k;const mk=p=>font.replace(/\d+px/,p+'px');
   g.font=mk(px);while(g.measureText(text).width>w-40&&px>18){px-=2;g.font=mk(px)}
-  g.textAlign='center';g.textBaseline='middle';g.fillStyle=color;g.shadowColor='#000';g.shadowBlur=14;g.fillText(text,w/2,h/2+4);
+  g.textAlign='center';g.textBaseline='middle';
+  if(pill){const tw=Math.min(w-8,g.measureText(text).width+px*.9),th=Math.min(h-8,px*1.35),x0=(w-tw)/2,y0=(h-th)/2,rr=th*.32;
+   g.fillStyle='rgba(9,10,12,.72)';g.beginPath();g.moveTo(x0+rr,y0);g.arcTo(x0+tw,y0,x0+tw,y0+th,rr);g.arcTo(x0+tw,y0+th,x0,y0+th,rr);g.arcTo(x0,y0+th,x0,y0,rr);g.arcTo(x0,y0,x0+tw,y0,rr);g.closePath();g.fill();
+   g.strokeStyle='rgba(255,255,255,.12)';g.lineWidth=3;g.stroke()}
+  g.fillStyle=color;g.shadowColor='#000';g.shadowBlur=pill?0:14;g.fillText(text,w/2,h/2+4);
  });
  t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;t.anisotropy=8;
  const m=new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false,depthTest:!onTop,toneMapped:false});
@@ -224,15 +239,17 @@ export function labelSprite(text,{color='#ece6da',size=1.6,font='700 40px sans-s
 
 // базовая сцена для панелей: свет, тёмный пол, камера
 export function panelScene(parent,{quality=1,pos=[0,8,12],look=[0,1,0],fov=34,bloom=[0.6,0.5,0.9],bg=0x0e0f12,sway=0}={}){
- const ctx=createStage(parent,{bg,fog:0.018,quality,bloom});
+ const ctx=createStage(parent,{bg,fog:0.026,quality,bloom});
  const {scene,camera}=ctx;
- scene.add(new THREE.HemisphereLight(0x9aa6c4,0x1a1410,0.6));
+ studio(ctx.renderer,scene,{intensity:.45});
+ scene.add(new THREE.HemisphereLight(0x9aa6c4,0x1a1410,0.35));
  const key=new THREE.DirectionalLight(0xfff0dc,2.3);key.position.set(-6,14,9);key.castShadow=true;key.shadow.mapSize.set(1024,1024);
  Object.assign(key.shadow.camera,{left:-14,right:14,top:14,bottom:-14,near:1,far:50});key.shadow.bias=-0.001;key.shadow.normalBias=.03;scene.add(key);
  const rim=new THREE.DirectionalLight(0x6f8cff,1.0);rim.position.set(8,6,-10);scene.add(rim);
  const dot=canvasTex(64,64,(g,w,h)=>{g.fillStyle='#1b1e23';g.fillRect(0,0,w,h);g.fillStyle='#394049';g.beginPath();g.arc(32,32,2.2,0,7);g.fill()});
  dot.wrapS=dot.wrapT=THREE.RepeatWrapping;dot.repeat.set(30,30);
- const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,60),toon(0x1b1e23,{emissive:0x0c0d10}));floor.rotation.x=-Math.PI/2;floor.position.y=-.02;floor.receiveShadow=true;scene.add(floor);
+ const floor=new THREE.Mesh(new THREE.PlaneGeometry(260,260),new THREE.MeshStandardMaterial({color:0x15181c,roughness:.8,metalness:.25}));
+ const fg=new THREE.Mesh(new THREE.PlaneGeometry(30,30),new THREE.MeshBasicMaterial({map:glowTexture(),color:hdr(.18,.22,.32),transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));fg.rotation.x=-Math.PI/2;fg.position.y=.01;scene.add(fg);floor.rotation.x=-Math.PI/2;floor.position.y=-.02;floor.receiveShadow=true;scene.add(floor);
  const P=new THREE.Vector3(...pos),L=new THREE.Vector3(...look);
  camera.fov=fov;camera.updateProjectionMatrix();
  ctx.add((dt,t)=>{camera.position.set(P.x+Math.sin(t*.2)*sway,P.y+Math.sin(t*.27)*sway*.4,P.z+Math.cos(t*.17)*sway*.5);camera.lookAt(L);const sh=ctx.fx.shake;if(sh>.001)camera.position.x+=(Math.random()-.5)*sh*.4});
@@ -241,11 +258,11 @@ export function panelScene(parent,{quality=1,pos=[0,8,12],look=[0,1,0],fov=34,bl
 }
 export const OL=0x121316,BONE=0xd9d4c9,STEEL=0xbfc3c9;
 export function box(ctx,parent,w,h,d,color,pos,{edge=true,ow=2,cast=true}={}){
- const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),toon(color));m.position.set(...pos);m.castShadow=cast;m.receiveShadow=true;parent.add(m);
+ const m=new THREE.Mesh(rbox(w,h,d,Math.min(.08,Math.min(w,h,d)*.18)),toon(color));m.position.set(...pos);m.castShadow=cast;m.receiveShadow=true;parent.add(m);
  if(edge)m.userData.ol=outline(ctx,m,OL,ow,1);return m;
 }
 export function tubeAlong(points,r=.05,color=0x7c818b){
  const path=new THREE.CurvePath();for(let i=1;i<points.length;i++)path.add(new THREE.LineCurve3(points[i-1].clone(),points[i].clone()));
  const g=new THREE.TubeGeometry(path,Math.max(8,points.length*12),r,6,false);
- return{mesh:new THREE.Mesh(g,toon(color)),path};
+ return{mesh:new THREE.Mesh(g,new THREE.MeshStandardMaterial({color,roughness:.35,metalness:.7})),path};
 }

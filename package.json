@@ -1,6 +1,6 @@
 {
   "name": "positive-education-cyber-polygon",
-  "version": "13.0.0",
+  "version": "16.0.0",
   "private": true,
   "description": "Интерактивная 3D-игра для стенда Positive Education",
   "scripts": {

@@ -1,8 +1,8 @@
 import {createStage,THREE,toon,glow,outline,sprite,Sparks,hdr,lerp,ease} from './core';
 import {domeShader} from './network';
 import {gsap} from 'gsap';
-import {feature} from 'topojson-client';
-import landTopo from 'world-atlas/land-110m.json';
+import {buildPlanet,orbitRing} from './planet';
+import {studio,rbox} from './kit';
 
 // Главный экран: точечный глобус «ландшафт угроз». Дуги атак летят со всего мира в одну точку — вашу сеть.
 const R=5;
@@ -34,90 +34,36 @@ export const SOURCES=[
  {id:'a1',lat:60,lon:-45},{id:'a2',lat:-35,lon:-65},{id:'a3',lat:30,lon:105},{id:'a4',lat:-1,lon:115},{id:'a5',lat:12,lon:-5},{id:'a6',lat:40,lon:-4}
 ];
 
-function landMask(){
- const W=2048,H=1024,c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');
- g.fillStyle='#000';g.fillRect(0,0,W,H);g.fillStyle='#fff';
- const f=feature(landTopo,landTopo.objects.land);
- const geoms=f.type==='FeatureCollection'?f.features.map(x=>x.geometry):[f.geometry||f];
- const X=lon=>(lon+180)/360*W,Y=lat=>(90-lat)/180*H;
- g.beginPath();
- for(const geo of geoms){
-  const polys=geo.type==='Polygon'?[geo.coordinates]:geo.coordinates;
-  for(const p of polys)for(const ring of p){ring.forEach(([lo,la],i)=>i?g.lineTo(X(lo),Y(la)):g.moveTo(X(lo),Y(la)));g.closePath()}
- }
- g.fill('evenodd');
- return g.getImageData(0,0,W,H).data;
-}
-
-const dotsVert=`
- attribute float aSeed;uniform float uTime,uScale;uniform vec3 uLight;uniform vec4 uHit[6];
- varying float vB;varying float vHit;varying float vSeed;
- void main(){
-  vec3 n=normalize(position);
-  float lit=dot(n,uLight)*.5+.5;
-  float hit=0.;
-  for(int i=0;i<6;i++){if(uHit[i].w>0.){float tt=uTime-uHit[i].w;float ang=acos(clamp(dot(n,normalize(uHit[i].xyz)),-1.,1.));float q=(ang-tt*1.1)*11.;hit+=exp(-q*q)*exp(-tt*1.5);}}
-  vB=.28+lit*.55;vHit=hit;vSeed=aSeed;
-  vec4 mv=modelViewMatrix*vec4(position,1.);
-  gl_PointSize=min((.05+clamp(hit,0.,1.)*.07)*uScale/-mv.z,uScale*.011);
-  gl_Position=projectionMatrix*mv;
- }`;
-const dotsFrag=`
- varying float vB;varying float vHit;varying float vSeed;
- void main(){
-  vec2 c=gl_PointCoord-.5;float d=length(c);if(d>.5)discard;
-  float a=smoothstep(.5,.15,d);
-  vec3 base=vec3(.62,.66,.74)*vB;
-  vec3 hot=vec3(3.0,.7,.4);
-  vec3 col=mix(base,hot,clamp(vHit,0.,.85));
-  gl_FragColor=vec4(col*a,a);
- }`;
 const arcVert='varying float vU;varying float vW;void main(){vU=uv.x;vec4 mv=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mv;}';
+// дуга: яркая «голова», хвост гаснет, за головой след растворяется шумом (приём Shopify BFCM)
 const arcFrag=`uniform float uHead,uTrail,uA;uniform vec3 uColor;varying float vU;
- void main(){float d=uHead-vU;float t=d>0.&&d<uTrail?pow(1.-d/uTrail,1.4)*1.4:0.;float head=smoothstep(.025,0.,abs(d))*2.2;float base=uHead>0.?.22:0.;float a=(t+head+base)*uA;gl_FragColor=vec4(uColor*a,a);}`;
-const atmoV='varying vec3 vN;varying vec3 vV;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}';
-const atmoF='uniform vec3 uColor;varying vec3 vN;varying vec3 vV;void main(){float f=pow(clamp(.62-dot(vN,vV),0.,1.),4.);gl_FragColor=vec4(uColor*f*.55,f*.5);}';
-
+ float h(float x){return fract(sin(x*91.7)*43758.5);}
+ void main(){float d=uHead-vU;float t=d>0.&&d<uTrail?pow(1.-d/uTrail,1.8)*1.5:0.;float head=smoothstep(.02,0.,abs(d))*3.;
+  float dis=step(h(floor(vU*160.)),1.-clamp((uHead-1.)*1.6,0.,1.));float base=(uHead>0.&&vU<uHead)?.16*dis:0.;
+  float a=(t+head+base)*uA;gl_FragColor=vec4(uColor*a,a);}`;
 export function createHero(parent,{quality=1}={}){
- const ctx=createStage(parent,{bg:0x07080a,fog:0,quality,bloom:[0.85,0.7,0.82],shadows:false,fov:30});
+ const ctx=createStage(parent,{bg:0x050608,fog:0,quality,bloom:[0.8,0.65,0.8],shadows:false,fov:30});
  const {scene,camera}=ctx;
  const api={ctx,handlers:{},pointer:{x:0,y:0},diving:false,arcCount:0,labels:[]};
- const sparks=new Sparks(ctx,1400);
 
- scene.add(new THREE.AmbientLight(0x889,0.4));
- const sun=new THREE.DirectionalLight(0xffe2cf,2.2);sun.position.set(-8,5,10);scene.add(sun);
+ studio(ctx.renderer,scene,{intensity:.35});
+ scene.add(new THREE.AmbientLight(0x889,0.25));
+ const sun=new THREE.DirectionalLight(0xffe2cf,2.4);sun.position.set(-8,5,10);scene.add(sun);
 
  const globe=new THREE.Group();scene.add(globe);
- // корпус
- const body=new THREE.Mesh(new THREE.SphereGeometry(R-.02,96,64),new THREE.MeshStandardMaterial({color:0x0b0d11,roughness:.55,metalness:.35}));globe.add(body);
- // атмосфера (не вращается)
- const atmo=new THREE.Mesh(new THREE.SphereGeometry(R*1.05,64,48),new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.BackSide,uniforms:{uColor:{value:new THREE.Color(1.0,.2,.1)}},vertexShader:atmoV,fragmentShader:atmoF}));scene.add(atmo);
- const atmo2=new THREE.Mesh(new THREE.SphereGeometry(R*1.012,64,48),new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{uColor:{value:new THREE.Color(.5,.62,.9)}},vertexShader:atmoV,fragmentShader:atmoF.replace('.62-dot','.8-dot').replace('f*.55','f*.45')}));scene.add(atmo2);
- // точки суши
- const data=landMask(),W=2048,H=1024,N=90000,pts=[],seed=[];
- const ga=Math.PI*(3-Math.sqrt(5));
- for(let i=0;i<N;i++){
-  const y=1-2*(i+.5)/N,rr=Math.sqrt(1-y*y),th=ga*i;
-  const lat=Math.asin(y)*180/Math.PI;let lon=((th*180/Math.PI)%360);lon=lon>180?lon-360:lon;
-  const px=Math.floor((lon+180)/360*W),py=Math.floor((90-lat)/180*H);
-  if(data[(py*W+px)*4]>128){const v=latLon(lat,lon,R+.012);pts.push(v.x,v.y,v.z);seed.push(Math.random())}
- }
- const dg=new THREE.BufferGeometry();dg.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));dg.setAttribute('aSeed',new THREE.Float32BufferAttribute(seed,1));
- const hitU=[...Array(6)].map(()=>new THREE.Vector4(0,1,0,-1));
- const dotMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uTime:{value:0},uScale:{value:ctx.h*.5},uLight:{value:new THREE.Vector3(-.5,.35,.8).normalize()},uHit:{value:hitU}},vertexShader:dotsVert,fragmentShader:dotsFrag});
- const dots=new THREE.Points(dg,dotMat);dots.frustumCulled=false;globe.add(dots);
- // градусная сетка
- const grat=new THREE.Group();
- const gm=new THREE.LineBasicMaterial({color:0x3a4456,transparent:true,opacity:.28});
- for(let lat=-60;lat<=60;lat+=30){const p=[];for(let k=0;k<=128;k++)p.push(latLon(lat,-180+k*360/128,R+.005));grat.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p),gm))}
- for(let lon=-180;lon<180;lon+=30){const p=[];for(let k=0;k<=96;k++)p.push(latLon(-90+k*180/96,lon,R+.005));grat.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(p),gm))}
- globe.add(grat);
-
+ // планета из кубиков
+ const tPos0=latLon(TARGET.lat,TARGET.lon,R);
+ const planet=buildPlanet(globe,{R,target:tPos0});
+ scene.add(planet.atmo);
+ // орбитальное кольцо-гироскоп
+ const orbit=new THREE.Group();orbit.rotation.set(1.18,.18,-.32);scene.add(orbit);
+ const ring1=orbitRing(R*1.34);orbit.add(ring1);
+ const ring2=orbitRing(R*1.42,{color:[.25,.3,.42],ticks:72});ring2.rotation.x=.08;orbit.add(ring2);
  // цель — «ваша сеть»
- const tPos=latLon(TARGET.lat,TARGET.lon,R),tN=tPos.clone().normalize();
+ const tPos=tPos0,tN=tPos.clone().normalize();
  const tg=new THREE.Group();tg.position.copy(tPos);tg.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),tN);globe.add(tg);
- const cube=new THREE.Mesh(new THREE.BoxGeometry(.34,.34,.34),toon(0xfc3e24,{emissive:0x5a0f06}));cube.position.y=.55;tg.add(cube);outline(ctx,cube,0x2a0805,2,1,10);
- const cubeHalo=sprite(0xfc3e24,2.6,.55);cubeHalo.position.y=.55;tg.add(cubeHalo);
+ const cube=new THREE.Mesh(rbox(.36,.36,.36,.05),new THREE.MeshPhysicalMaterial({color:0xfc3e24,roughness:.22,metalness:.05,clearcoat:1,clearcoatRoughness:.06,emissive:0x400a04}));cube.position.y=.62;tg.add(cube);
+ const cubeHalo=sprite(0xfc3e24,2.6,.55);cubeHalo.position.y=.62;tg.add(cubeHalo);
  const pillar=new THREE.Mesh(new THREE.CylinderGeometry(.02,.14,1.3,16,1,true),new THREE.MeshBasicMaterial({color:hdr(1.8,.2,.1),transparent:true,opacity:.3,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,side:THREE.DoubleSide}));pillar.position.y=.65;tg.add(pillar);
  const shieldMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
   uniforms:{uTime:{value:0},uR:{value:1.2},uScan:{value:-1},uColor:{value:new THREE.Color(.35,1.5,1.0)},uHit:{value:[0,1,2,3].map(()=>new THREE.Vector4(0,1,0,-1))}},vertexShader:domeShader.vertex,fragmentShader:domeShader.fragment});
@@ -145,23 +91,21 @@ export function createHero(parent,{quality=1}={}){
  const arcMatBase=(col)=>new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{uHead:{value:-1},uTrail:{value:.32},uA:{value:1},uColor:{value:new THREE.Color(...col)}},vertexShader:arcVert,fragmentShader:arcFrag});
  const spawn=(from,to,{col=[3.0,.45,.25],speed=.34,ambient=false}={})=>{
   const curve=makeArc(from,to,.28);
-  const geo=new THREE.TubeGeometry(curve,96,ambient?.016:.032,6,false);
+  const geo=new THREE.TubeGeometry(curve,128,ambient?.012:.024,6,false);
   const mesh=new THREE.Mesh(geo,arcMatBase(col));mesh.frustumCulled=false;globe.add(mesh);
   arcs.push({mesh,curve,t:-.05,speed,ambient,to,toTarget:to===tPos||to.equals(tPos),done:false});
  };
  const toTarget=()=>{const s=srcObjs[Math.floor(Math.random()*srcObjs.length)];spawn(s.p,tPos,{speed:.27+Math.random()*.12,col:s.s.ai?[2.6,1.5,.3]:[3.0,.45,.25]});};
  const ambient=()=>{const a=srcObjs[Math.floor(Math.random()*srcObjs.length)],b=srcObjs[Math.floor(Math.random()*srcObjs.length)];if(a!==b)spawn(a.p,b.p,{col:[.7,.28,.18],speed:.3,ambient:true})};
 
- // кольца на поверхности
- const ripples=[];const rgeo=new THREE.RingGeometry(.9,1,48);
- for(let i=0;i<14;i++){const m=new THREE.Mesh(rgeo,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,toneMapped:false}));m.visible=false;globe.add(m);ripples.push({m,t:1,r:1})}
- let rk=0,hk=0,sk=0;
- const ripple=(pos,color,r=.9)=>{const it=ripples[rk];rk=(rk+1)%ripples.length;const n=pos.clone().normalize();it.m.position.copy(n.clone().multiplyScalar(R+.03));it.m.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),n);it.m.material.color.setRGB(...color);it.t=0;it.r=r;it.m.visible=true};
-
+ const ripple=(pos)=>{planet.hit(pos,ctx.t)};
  // звёздная пыль
- const sp=[];for(let i=0;i<900;i++){const v=new THREE.Vector3().randomDirection().multiplyScalar(30+Math.random()*60);sp.push(v.x,v.y,v.z)}
- const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
- scene.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0x7a8296,size:.12,sizeAttenuation:true,transparent:true,opacity:.55})));
+ const sp=[],ss=[];for(let i=0;i<2200;i++){const v=new THREE.Vector3().randomDirection().multiplyScalar(40+Math.random()*60);sp.push(v.x,v.y,v.z);ss.push(Math.pow(Math.random(),6))}
+ const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));sg.setAttribute('aS',new THREE.Float32BufferAttribute(ss,1));
+ const starMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:{uTime:{value:0},uScale:{value:ctx.h}},
+  vertexShader:'attribute float aS;uniform float uTime,uScale;varying float vA;void main(){vec4 mv=modelViewMatrix*vec4(position,1.);vA=(.35+aS*1.6)*(.7+.3*sin(uTime*(.6+aS*2.)+position.x));gl_PointSize=(1.2+aS*3.)*uScale/1080.;gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'varying float vA;void main(){float d=length(gl_PointCoord-.5);if(d>.5)discard;float a=smoothstep(.5,0.,d)*vA;gl_FragColor=vec4(vec3(.75,.82,1.)*a,a);}'});
+ const stars=new THREE.Points(sg,starMat);stars.frustumCulled=false;scene.add(stars);
 
  // ориентация и камера
  const spin=new THREE.Quaternion(),tiltQ=new THREE.Quaternion();
@@ -171,31 +115,42 @@ export function createHero(parent,{quality=1}={}){
  const cam={d:30,fov:30,ox:-400,oy:0};
  let diveT=0,diveFrom=new THREE.Quaternion(),diveTo=new THREE.Quaternion(),fade=1;
  const worldTarget=new THREE.Vector3();
- api.dive=cb=>{
+ // Пике к цели. Стартует из текущего состояния камеры (с учётом зума и курсора) — без рывков.
+ // onCover вызывается заранее, чтобы занавес успел закрыть кадр до смены сцены.
+ const dv={px:0,py:0,roll:0};let diveTw=null;
+ api.dive=({onCover,coverAt=.58}={})=>{
   if(api.diving)return;api.diving=true;
-  diveFrom.copy(globe.quaternion);
-  // повернуть так, чтобы цель смотрела в камеру
-  diveTo.setFromUnitVectors(tN,new THREE.Vector3(0,0,1));
-  const o={t:0};
-  gsap.to(o,{t:1,duration:2.3,ease:'power3.inOut',onUpdate:()=>{diveT=o.t;
-   globe.quaternion.slerpQuaternions(diveFrom,diveTo,Math.min(1,ease.inOut(Math.min(1,o.t*1.25))));
-   cam.d=lerp(30,9.6,ease.inOut(o.t));cam.fov=lerp(30,38,o.t);parent.style.opacity=o.t>.74?String(Math.max(0,1-(o.t-.74)/.26)):'1';cam.ox=lerp(-400,0,Math.min(1,o.t*1.2));cam.oy=lerp(0,0,o.t);
-   ctx.finalPass.uniforms.uFlash.value=0;
-  },onComplete:()=>{cb&&cb()}});
-  gsap.to(ctx.finalPass.uniforms.uAb,{value:.012,duration:1.4,delay:.7});
+  const d0=cam.d*zoom,ox0=cam.ox,fov0=cam.fov;dv.px=api.pointer.x;dv.py=api.pointer.y;const px0=dv.px,py0=dv.py;
+  cam.d=d0;
+  diveFrom.copy(globe.quaternion);diveTo.setFromUnitVectors(tN,new THREE.Vector3(.08,.16,1).normalize());
+  const o={t:0};let covered=false;
+  diveTw=gsap.to(o,{t:1,duration:2.6,ease:'none',onUpdate:()=>{
+   const t=o.t,e=ease.inOut(t);diveT=t;
+   globe.quaternion.slerpQuaternions(diveFrom,diveTo,ease.inOut(Math.min(1,t*1.35)));
+   cam.d=lerp(d0,7.4,Math.pow(e,1.25));cam.fov=lerp(fov0,46,e);cam.ox=lerp(ox0,0,ease.inOut(Math.min(1,t*1.4)));cam.oy=0;
+   dv.px=lerp(px0,0,Math.min(1,t*2));dv.py=lerp(py0,0,Math.min(1,t*2));dv.roll=Math.sin(Math.min(1,t)*Math.PI)*.07;
+   if(t>.35)ctx.aberrate(Math.min(.5,(t-.35)*1.2));
+   if(!covered&&t>=coverAt){covered=true;onCover&&onCover()}
+  }});
  };
+ const disp0=ctx.dispose;ctx.dispose=()=>{diveTw&&diveTw.kill();disp0()};
  api.on=(n,f)=>{api.handlers[n]=f};
+ const tw=new THREE.Vector3();
+ api.targetScreen=()=>{tg.getWorldPosition(tw);const p=ctx.project(tw);const fr=tw.clone().sub(camera.position).normalize().dot(tw.clone().normalize())<0;return{x:p.x,y:p.y,front:fr}};
  api.input={down:false,moved:false,vx:0,vy:0,holdT:0};
  api.zoomBy=f=>{if(api.diving)return;zoomT=Math.max(.55,Math.min(1.5,zoomT*f))};
  api.hitPlanet=(cx,cy)=>{const r=parent.getBoundingClientRect(),k=r.width/ctx.w;const x=(cx-r.left)/k,y=(cy-r.top)/k;const c=ctx.project(new THREE.Vector3(0,0,0)),e=ctx.project(new THREE.Vector3(R,0,0));return Math.hypot(x-c.x,y-c.y)<Math.hypot(e.x-c.x,e.y-c.y)*1.12};
- api.setPointer=(x,y)=>{api.pointer.x=x;api.pointer.y=y};
+ api.ptrT=0;const ndc=new THREE.Vector2();
+ api.setPointer=(x,y)=>{api.pointer.x=x;api.pointer.y=y;api.ptrT=performance.now()};
 
  let timer=0,amb=0,first=true,hitK=0;
  // стартовая очередь, чтобы кадр сразу был «живой»
  for(let i=0;i<4;i++)setTimeout(()=>toTarget(),i*350);for(let i=0;i<3;i++)setTimeout(ambient,150+i*500);
  const v=new THREE.Vector3();
  ctx.add((dt,t)=>{
-  dotMat.uniforms.uTime.value=t;dotMat.uniforms.uScale.value=ctx.h*.5;shieldMat.uniforms.uTime.value=t;
+  planet.update(dt,t);starMat.uniforms.uTime.value=t;shieldMat.uniforms.uTime.value=t;
+  ring1.rotation.z=t*.03;ring2.rotation.z=-t*.018;
+  planet.pointer(ndc.set(api.pointer.x,-api.pointer.y),camera,!api.diving&&performance.now()-api.ptrT<1400);
   if(!api.diving){
    const I=api.input;
    if(I.down){
@@ -208,11 +163,10 @@ export function createHero(parent,{quality=1}={}){
    spin.setFromAxisAngle(new THREE.Vector3(0,1,0),ang);tiltQ.setFromEuler(new THREE.Euler(tilt,0,.1));globe.quaternion.copy(tiltQ).multiply(spin);
    api.speed=Math.abs(angVel);
   }
-  atmo.visible=atmo2.visible=fade>.01;
   // камера
-  const px=api.diving?0:api.pointer.x,py=api.diving?0:api.pointer.y;
-  camera.position.set(px*.8,py*-.45+(1-diveT)*.6,cam.d*(api.diving?1:zoom));
-  camera.lookAt(0,0,0);camera.fov=cam.fov;
+  const px=api.diving?dv.px:api.pointer.x,py=api.diving?dv.py:api.pointer.y;
+  camera.position.set(px*.8,py*-.45+(1-diveT)*.6,api.diving?cam.d:cam.d*zoom);
+  camera.lookAt(0,0,0);camera.rotateZ(dv.roll);camera.fov=cam.fov;
   camera.setViewOffset(ctx.w,ctx.h,cam.ox*ctx.w/1920,cam.oy*ctx.h/1080,ctx.w,ctx.h);camera.updateProjectionMatrix();
   // спавн
   timer-=dt;if(timer<=0&&!api.diving){timer=.5+Math.random()*.6;toTarget()}
@@ -228,18 +182,14 @@ export function createHero(parent,{quality=1}={}){
     const end=a.curve.getPoint(1);
     if(a.toTarget){
      // попадание: щит гасит
-     const wp=end.clone();ripple(end,[3,.5,.3],.8);
+     ripple(end);
      const dir=new THREE.Vector3(Math.random()-.5,.5+Math.random()*.4,Math.random()-.5).normalize();hitK=(hitK+1)%4;shieldMat.uniforms.uHit.value[hitK].set(dir.x,dir.y,dir.z,t);
-     globe.localToWorld(wp);const nrm=wp.clone().normalize();
-     sparks.emit(wp,16,{speed:2.2,dir:nrm.multiplyScalar(.9),spread:.7,color:[.6,1.8,1.3],size:.07,life:.9,gravity:0});
-     hitU[hk=(hk+1)%6].set(end.x,end.y,end.z,t);
      if(Math.random()<.35){ctx.kick(.12)}
      api.arcCount++;api.handlers.hit&&api.handlers.hit(api.arcCount);
-    }else{ripple(end,[.8,.3,.2],.35)}
+    }else if(Math.random()<.4){ripple(end)}
    }
    if(a.t>1.5){globe.remove(a.mesh);a.mesh.geometry.dispose();a.mesh.material.dispose();arcs.splice(i,1)}
   }
-  ripples.forEach(r=>{if(r.t>=1)return;r.t+=dt/1.4;const e=1-Math.pow(1-Math.min(1,r.t),3);r.m.scale.setScalar(.15+e*r.r);r.m.material.opacity=(1-r.t)*.9;if(r.t>=1)r.m.visible=false});
   // подписи
   const cand=srcObjs.filter(o=>o.s.label).map(o=>{v.copy(o.p).applyQuaternion(globe.quaternion);const facing=v.clone().normalize().z;
    v.addScaledVector(o.n.clone().applyQuaternion(globe.quaternion),.35);const s2=ctx.project(v);return{id:o.s.id,text:o.s.label,ai:!!o.s.ai,x:s2.x,y:s2.y,facing,show:facing>.18}}).sort((a,b)=>b.facing-a.facing);

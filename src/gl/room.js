@@ -1,4 +1,5 @@
-import {THREE,PAL,toon,glow,outline,sprite,hdr,ease,lerp,labelSprite,panelScene,box,tubeAlong,OL,BONE,STEEL} from './core';
+import {THREE,PAL,toon,glow,outline,sprite,hdr,ease,lerp,labelSprite,panelScene,box,tubeAlong,canvasTex,OL,BONE,STEEL} from './core';
+import {mats,rack,switchBox,appliance,laptop,rbox,mesh} from './kit';
 
 const RED=[2.4,.2,.08],MINT=[.4,1.8,1.2],AMB=[2.4,1.5,.3],ICE=[.55,1.35,2.2],WHITE=[1.3,1.25,1.15];
 const at=(path,u)=>path.getPointAt(Math.min(.998,Math.max(.002,u)));
@@ -18,7 +19,7 @@ export const TOKENS=[
  {id:'listen',label:'порт 443',pos:[3.3,1.9,1.4],dev:'web'},
  {id:'snmp',label:'SNMP',pos:[-4.0,1.9,-2.6],dev:'sw'},
  {id:'telnet',label:'Telnet',pos:[-4.0,1.9,-6.4],dev:'sw'},
- {id:'log',label:'логи → SIEM',pos:[.2,1.9,-6.6],dev:'sw'}
+ {id:'log',label:'логи → SIEM',pos:[3.4,1.9,-3.2],dev:'sw'}
 ];
 
 export function createConfigRoom(parent,{quality=1,cb={}}={}){
@@ -27,26 +28,26 @@ export function createConfigRoom(parent,{quality=1,cb={}}={}){
  const api={ctx,fixed:{},report:null,busy:false,hot:null,hover:null};
  const mk=(name,x,z)=>{const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);g.userData.name=name;return g};
  const P=(x,y,z)=>new THREE.Vector3(x,y,z);
- const leds=[];
+ const leds=[],kl=[];const M=mats();
 
  const client=mk('client',0,7.4);
- box(ctx,client,2.2,.12,1.5,STEEL,[0,.06,0]);const scr=box(ctx,client,2.0,1.3,.1,BONE,[0,.85,-.55]);scr.rotation.x=-.2;
- const cs=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1.1),new THREE.MeshBasicMaterial({color:0x1f3a31}));cs.position.set(0,.88,-.49);cs.rotation.x=-.2;client.add(cs);
+ const portal=canvasTex(256,160,(g,w,h)=>{g.fillStyle='#0f1a1f';g.fillRect(0,0,w,h);g.fillStyle='#1d3a46';g.fillRect(0,0,w,26);g.fillStyle='#7fe0b5';g.fillRect(12,9,60,8);
+  g.fillStyle='#e9edf0';g.font='700 22px sans-serif';g.fillText('portal.corp.local',16,62);g.fillStyle='#2b4652';for(let i=0;i<4;i++)g.fillRect(16,80+i*18,140+((i*53)%80),9);g.fillStyle='#fc3e24';g.fillRect(190,120,48,22)});
+ const lp=laptop(M,{w:2.1,screen:portal});client.add(lp);
  const cl=labelSprite('клиент',{size:.9,color:'#a4a198',font:'600 34px sans-serif'});cl.position.set(0,2.4,-.4);client.add(cl);
 
  const web=mk('web',0,1.8);
- box(ctx,web,2.4,4.3,1.8,BONE,[0,2.15,0]);
- for(let i=0;i<8;i++){box(ctx,web,1.9,.2,.06,0x1a1c20,[0,.5+i*.46,.93],{edge:false,cast:false});const l=new THREE.Mesh(new THREE.BoxGeometry(.12,.12,.05),mat(MINT));l.position.set(.8,.5+i*.46,.97);web.add(l);leds.push({l,ph:Math.random()*6})}
+ web.add(rack(M,{w:2.4,h:4.3,d:1.8,units:9,leds:kl}));
  const wl=labelSprite('web-01',{size:1});wl.position.set(0,5.3,0);web.add(wl);
 
  const sw=mk('sw',-1.6,-4.6);
- box(ctx,sw,4.2,.9,1.6,STEEL,[0,.45,0]);
- for(let i=0;i<10;i++){const l=new THREE.Mesh(new THREE.BoxGeometry(.14,.14,.05),mat(MINT));l.position.set(-1.7+i*.38,.45,.82);sw.add(l);leds.push({l,ph:Math.random()*6})}
+ sw.add(switchBox(M,{w:4.2,h:.95,d:1.6,ports:12,leds:kl}));
  const sl=labelSprite('core-sw01',{size:1});sl.position.set(0,1.9,0);sw.add(sl);
 
  const siem=mk('siem',2.0,-8.6);
- box(ctx,siem,2.0,2.6,1.4,BONE,[0,1.3,0]);
- const ss=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.1),new THREE.MeshBasicMaterial({color:0x143028}));ss.position.set(0,1.5,.71);siem.add(ss);
+ const chart=canvasTex(256,200,(g,w,h)=>{g.fillStyle='#0c1a16';g.fillRect(0,0,w,h);g.strokeStyle='#7fe0b5';g.lineWidth=4;g.beginPath();for(let i=0;i<=12;i++){const x=12+i*19,y=120-Math.sin(i*.8)*34-((i*37)%23);i?g.lineTo(x,y):g.moveTo(x,y)}g.stroke();
+  g.fillStyle='#7fe0b5';for(let i=0;i<6;i++)g.fillRect(14+i*38,h-30-((i*29)%26),24,8);g.fillStyle='#e9edf0';g.font='700 20px monospace';g.fillText('SIEM · events',12,26)});
+ siem.add(appliance(M,{w:2.1,h:2.7,d:1.5,face:chart,faceW:1.5,faceH:1.2,leds:kl,light:true}));
  const sil=labelSprite('SIEM',{size:1});sil.position.set(0,3.4,0);siem.add(sil);
 
  const linkA=tubeAlong([P(0,.12,6.5),P(0,.12,2.9)],.07,0x7c818b);scene.add(linkA.mesh);
@@ -56,16 +57,19 @@ export function createConfigRoom(parent,{quality=1,cb={}}={}){
  flows.forEach(f=>{f.m=[];for(let i=0;i<f.n;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.14,10,8),mat(WHITE));scene.add(m);f.m.push(m)}});
 
  // ----- токены -----
+ const chipTex=canvasTex(128,128,(g,w,h)=>{g.clearRect(0,0,w,h);g.strokeStyle='#fff';g.lineWidth=7;g.strokeRect(10,10,108,108);g.globalAlpha=.35;g.fillStyle='#fff';g.fillRect(10,10,108,108);g.globalAlpha=1;g.fillStyle='#fff';g.fillRect(40,40,48,48)});
  const tokens=TOKENS.map(t=>{
   const g=new THREE.Group();g.position.set(...t.pos);scene.add(g);
-  const core=new THREE.Mesh(new THREE.IcosahedronGeometry(.46,0),toon(0xe7b04a,{emissive:0x4a2f08}));core.castShadow=true;g.add(core);
+  const core=new THREE.Mesh(rbox(.95,.28,.95,.1),new THREE.MeshStandardMaterial({color:0x1d2127,roughness:.3,metalness:.75}));core.castShadow=true;g.add(core);
+  const top=new THREE.Mesh(new THREE.PlaneGeometry(.66,.66),new THREE.MeshBasicMaterial({map:chipTex,color:0xffffff,transparent:true,toneMapped:false}));top.rotation.x=-Math.PI/2;top.position.y=.145;core.add(top);
+  for(let k=0;k<4;k++){const pin=new THREE.Mesh(new THREE.BoxGeometry(.08,.05,.16),M.steel);pin.position.set(-.3+k*.2,0,.53);core.add(pin);const pin2=pin.clone();pin2.position.z=-.53;core.add(pin2)}
   const ol=outline(ctx,core,OL,2.2,1,10);
   const halo=sprite(0xf2a53a,2.6,.0);g.add(halo);
   const ring=new THREE.Mesh(new THREE.TorusGeometry(.62,.025,6,48),mat(AMB));ring.rotation.x=Math.PI/2;ring.position.y=-.5;g.add(ring);
-  const lab=labelSprite(t.label,{size:.9,font:'700 40px sans-serif'});lab.position.set(0,1.2,0);g.add(lab);
+  const lab=labelSprite(t.label,{size:.78,font:'700 40px sans-serif'});lab.position.set(0,1.05,0);g.add(lab);
   const stem=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,t.pos[1],6),mat([.7,.5,.2],{transparent:true,opacity:.5}));stem.position.y=-t.pos[1]/2;g.add(stem);
   core.userData.id=t.id;
-  return{t,g,core,ol,halo,ring,lab,stem,col:new THREE.Color(),k:0,hov:0,shake:0,ph:Math.random()*6};
+  return{t,g,core,top,ol,halo,ring,lab,stem,col:new THREE.Color(),k:0,hov:0,shake:0,ph:Math.random()*6};
  });
  const tokById=Object.fromEntries(tokens.map(x=>[x.t.id,x]));
  const meshes=tokens.map(x=>x.core);
@@ -108,6 +112,7 @@ export function createConfigRoom(parent,{quality=1,cb={}}={}){
   az=lerp(az,azT,1-Math.exp(-dt*6));
   const rel=base.clone().sub(look);const c=Math.cos(az),s=Math.sin(az);
   camera.position.set(look.x+rel.x*c+rel.z*s,base.y,look.z-rel.x*s+rel.z*c);camera.lookAt(look);
+  for(const l of kl){const b=Math.sin(t*(.6+l.ph*.1)+l.ph)>-.4?1:.45;l.m.material.color.setRGB(l.c[0]*b,l.c[1]*b,l.c[2]*b)}
   for(const l of leds){const b=Math.sin(t*(.6+l.ph*.1)+l.ph)>-.4?1:.45;l.l.material.color.setRGB(MINT[0]*b,MINT[1]*b,MINT[2]*b)}
   // токены
   for(const x of tokens){
@@ -115,12 +120,12 @@ export function createConfigRoom(parent,{quality=1,cb={}}={}){
    let col=AMB,emi=[.29,.18,.03];
    if(rep==='ok'){col=MINT;emi=[.05,.3,.18]}else if(rep==='missed'||rep==='broken'){col=RED;emi=[.5,.04,.02]}else if(fixed){col=ICE;emi=[.08,.18,.3]}
    tmp.setRGB(col[0]/2.4,col[1]/2.4,col[2]/2.4);x.col.lerp(tmp,1-Math.exp(-dt*9));
-   x.core.material.color.setRGB(.55+x.col.r*.45,.55+x.col.g*.45,.55+x.col.b*.45);x.core.material.emissive.setRGB(emi[0],emi[1],emi[2]);
+   x.top.material.color.setRGB(x.col.r*1.35*(1+x.hov*.6),x.col.g*1.35*(1+x.hov*.6),x.col.b*1.35*(1+x.hov*.6));x.core.material.emissive.setRGB(emi[0]*.25,emi[1]*.25,emi[2]*.25);
    const hot=(api.hover===id||api.hot===id)?1:0;x.hov=lerp(x.hov,hot,1-Math.exp(-dt*12));
    x.shake=Math.max(0,x.shake-dt*1.6);
    x.g.position.y=x.t.pos[1]+Math.sin(t*1.4+x.ph)*.08+x.hov*.18;x.g.position.x=x.t.pos[0]+Math.sin(x.shake*40)*x.shake*.25;
-   const sc=1+x.hov*.22;x.core.scale.setScalar(sc*(fixed?.88:1));x.core.rotation.y=t*.5+x.ph;
-   x.halo.material.color.setRGB(col[0]/2.4,col[1]/2.4,col[2]/2.4);x.halo.material.opacity=.25+x.hov*.5;
+   const sc=1+x.hov*.22;x.core.scale.setScalar(sc*(fixed?.88:1));x.core.rotation.y=Math.sin(t*.6+x.ph)*.35;x.core.rotation.x=.28;
+   x.halo.material.color.setRGB(col[0]/2.4,col[1]/2.4,col[2]/2.4);x.halo.material.opacity=.1+x.hov*.4;
    x.ring.material.color.setRGB(col[0]*.8,col[1]*.8,col[2]*.8);x.ring.scale.setScalar(1+x.hov*.2);x.ring.position.y=-x.g.position.y+.14;
    x.stem.scale.y=x.g.position.y/x.t.pos[1];x.stem.position.y=-x.g.position.y/2;
    x.ol.material.color.setHex(rep==='missed'||rep==='broken'?0xfc3e24:OL);
