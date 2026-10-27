@@ -4,6 +4,7 @@ import NetMap from '../scene/NetMap';
 import {Glyph} from '../scene/art';
 import {tools,slots} from '../scene/topology';
 import {Briefing,useThread,stagePt,reduced,onLift} from '../ui';
+import {sfx} from '../audio';
 import {net} from '../gl/NetStage';
 import {webglOK} from '../gl/core';
 
@@ -33,7 +34,7 @@ export default function Perimeter({level,onWin}){
    setMistakes(m=>m+1);setWrong(slotId);net.set({wrong:slotId});setTimeout(()=>{setWrong(null);net.set({wrong:null})},700);
    th.say(`${t.name} ${t.desc}. А тут нужно ${s.need}.`,'error');return;
   }
-  const next={...placed,[slotId]:true};setPlaced(next);setArmed(null);net.set({placed:next,armed:false});
+  sfx.place();const next={...placed,[slotId]:true};setPlaced(next);setArmed(null);net.set({placed:next,armed:false});
   th.say(`${t.name} встал на «${s.label}». Смотри, какие пакеты теперь гаснут.`,'ok');
   if(Object.keys(next).length===order.length&&!done.current){done.current=true;th.say('Периметр закрыт. Красные ромбы больше не доходят.','ok');setTimeout(()=>onWin(mistakes),2600)}
  };

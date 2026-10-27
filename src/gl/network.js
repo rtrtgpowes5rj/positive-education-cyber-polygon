@@ -2,6 +2,9 @@ import {createStage,THREE,PAL,toon,glow,outline,canvasTex,sprite,Sparks,Rings,ea
 import {LineSegments2} from 'three/examples/jsm/lines/LineSegments2.js';
 import {LineSegmentsGeometry} from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import {cables,slots,tools,routes} from '../scene/topology';
+import {sfx} from '../audio';
+import {createFlow} from './flow';
+import {TIER} from './tier';
 import {studio,mats,rack,switchBox,appliance,monitor,socDesk,labelTex,mesh,rbox,setAccent,ledDot,glowMat} from './kit';
 
 const K=0.028;
@@ -12,11 +15,11 @@ const INK=0xece6da,OL=0x121316,BONE=0xd9d4c9,STEEL=0xbfc3c9;
 export const domeShader={
  vertex:'varying vec3 vL;varying vec3 vN;varying vec3 vV;void main(){vL=position;vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
  fragment:`
- uniform float uTime,uR,uScan;uniform vec3 uColor;uniform vec4 uHit[4];varying vec3 vL;varying vec3 vN;varying vec3 vV;
+ uniform float uTime,uR,uScan,uHex;uniform vec3 uColor;uniform vec4 uHit[4];varying vec3 vL;varying vec3 vN;varying vec3 vV;
  float hexD(vec2 p){p=abs(p);return max(dot(p,normalize(vec2(1.,1.73))),p.x);}
  void main(){
   float fres=pow(1.-abs(dot(normalize(vN),vV)),2.2);
-  vec2 uv=vL.xz*2.6+vec2(vL.y*.8);
+  float hs=uHex>0.?uHex:2.6;vec2 uv=vL.xz*hs+vec2(vL.y*.8*hs/2.6);
   vec2 r=vec2(1.,1.73);vec2 h=r*.5;vec2 a=mod(uv,r)-h;vec2 b=mod(uv-h,r)-h;vec2 gv=dot(a,a)<dot(b,b)?a:b;
   float line=1.-smoothstep(0.,.07,.5-hexD(gv));
   float acc=0.;
@@ -48,11 +51,11 @@ function socDraw(g,w,h,lit,t){
  g.fillStyle=lit?'#7fe0b5':'#3b3d43';for(let i=0;i<5;i++)g.fillRect(14+i*46,h-24-((i*37+Math.floor(t*3))%40),30,6);
 }
 export function createNetwork(parent,{quality=1}={}){
- const ctx=createStage(parent,{bg:0x0b0c0e,fog:0.012,quality,bloom:[0.5,0.55,0.92]});
+ const ctx=createStage(parent,{bg:0x0b0c0e,fog:0.012,quality,bloom:[0.5,0.55,0.92],ao:true,dof:true,aoRadius:1.6,aoIntensity:2.4});
  const {scene,camera}=ctx;
  const sparks=new Sparks(ctx,2600),rings=new Rings(ctx,28);
  const api={ctx,stats:{breach:0,block:0},handlers:{},mode:'attract',pointer:{x:0,y:0},placed:{},dev:{},slotObj:{}};
- const emit=(n,a)=>{api.handlers[n]&&api.handlers[n](a)};
+ const emit=(n,a)=>{if(api.mode==='play'){if(n==='breach')sfx.breach();else if(n==='block')sfx.shield()}api.handlers[n]&&api.handlers[n](a)};
  api.on=(n,f)=>{api.handlers[n]=f};
 
  // ----- свет -----
@@ -87,6 +90,9 @@ export function createNetwork(parent,{quality=1}={}){
   for(let k=1;k<c.length;k++){const a=W(c[k-1][0],c[k-1][1],.09),b=W(c[k][0],c[k][1],.09);if(a.distanceTo(b)>.001)path.add(new THREE.LineCurve3(a,b))}
   const tube=new THREE.Mesh(new THREE.TubeGeometry(path,Math.max(8,c.length*10),.055,6,false),i===7?new THREE.MeshStandardMaterial({color:0x1f5a46,roughness:.4,metalness:.5,emissive:0x0a2a20}):cableMat);tube.receiveShadow=true;scene.add(tube);
  });
+
+ // поток данных по кабелям (на видеокарте)
+ const flow=createFlow(scene,cables,W,{count:TIER.gpuPackets,logCable:7});
 
  // ----- помощники -----
  const group=(name,pos)=>{const g=new THREE.Group();g.position.copy(pos);g.userData.name=name;g.userData.mats=[];scene.add(g);api.dev[name]=g;return g};
@@ -164,6 +170,20 @@ export function createNetwork(parent,{quality=1}={}){
  const socScreens=desk.userData.screens;
  let socLit=false,socT=0,socAcc=0;
 
+ // ===== станция ИИ-агента: пульт с ядром агента и шлюзами конвейера CI/CD =====
+ const agent=group('agent',W(990,120));
+ {const plat=mesh(new THREE.CylinderGeometry(2.3,2.5,.32,72),M.frame,agent,[0,.16,0]);agent.userData.mats.push(plat.material);
+  const edge=new THREE.Mesh(new THREE.TorusGeometry(2.38,.025,6,128),glowMat(.3,1.6,1.1));edge.rotation.x=Math.PI/2;edge.position.y=.33;agent.add(edge);
+  const pearl=new THREE.Mesh(new THREE.SphereGeometry(.82,64,48),new THREE.MeshPhysicalMaterial({color:0xe8ecf0,roughness:.2,metalness:.1,clearcoat:1,clearcoatRoughness:.08,sheen:.6,sheenColor:new THREE.Color(0x9fe6ff)}));pearl.position.y=1.75;pearl.castShadow=true;agent.add(pearl);
+  const visor=new THREE.Mesh(new THREE.CapsuleGeometry(.13,.62,8,24),glowMat(.35,1.9,1.2));visor.rotation.z=Math.PI/2;visor.position.set(0,1.86,.74);agent.add(visor);
+  const orb=new THREE.Mesh(new THREE.TorusGeometry(1.25,.016,8,128),glowMat(.5,1.2,1.6));orb.rotation.x=1.2;orb.position.y=1.75;agent.add(orb);agent.userData.orb=orb;
+  mesh(new THREE.CylinderGeometry(.06,.16,1.1,16),M.steel,agent,[0,.85,0]);
+  [-1.4,0,1.4].forEach((x,i)=>{const gate=mesh(rbox(.34,1.15,.34,.06),M.frame,agent,[x,.9,1.75]);const l=new THREE.Mesh(new THREE.BoxGeometry(.2,.05,.05),glowMat(.35,1.9,1.1));l.position.set(x,1.32,1.93);agent.add(l)});
+  agent.userData.pearl=pearl;}
+ {const path=new THREE.CurvePath();const pts=[W(990,120,.09),W(990,70,.09),W(660,70,.09),W(660,150,.09)];for(let k=1;k<pts.length;k++)path.add(new THREE.LineCurve3(pts[k-1],pts[k]));
+  const t=new THREE.Mesh(new THREE.TubeGeometry(path,40,.055,6,false),cableMat);t.receiveShadow=true;scene.add(t)}
+ blob(990,120,6,6,.8);
+
  // ===== слоты =====
  const slotObj=api.slotObj;
  const plateGeo=new THREE.BoxGeometry(1.5,.8,1.1);
@@ -230,11 +250,34 @@ export function createNetwork(parent,{quality=1}={}){
  const cam={pos:new THREE.Vector3(-30,34,52),tgt:new THREE.Vector3(1.2,0,.4),fov:36,ox:-262,oy:10};
  const presets={
   attract:{pos:new THREE.Vector3(-22,10.5,27.5),tgt:new THREE.Vector3(2.8,.8,.2),fov:30,ox:-440,oy:-30},
-  play:{pos:new THREE.Vector3(-4,24,31),tgt:new THREE.Vector3(.8,0,.6),fov:30,ox:-262,oy:10},
+  play:{pos:new THREE.Vector3(-4,24,31),tgt:new THREE.Vector3(.8,0,.6),fov:30,ox:-372,oy:10},
   pre:{pos:new THREE.Vector3(-30,34,52),tgt:new THREE.Vector3(1.2,0,.4),fov:36,ox:-262,oy:10}
  };
- // переходы камеры — по времени с плавным разгоном и торможением (кран с высоты в рабочий ракурс)
- let target=presets.pre,from=null,tt=1,dur=1;
+ // станции уровней: show — эффектный ракурс под название уровня, work — фон во время игры (объект слева, размыт)
+ const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+ const ST={
+  l0:{show:{pos:V(7.5,4.2,12.5),tgt:V(-5.2,1.6,-.6),fov:34,ox:-330,oy:0},work:presets.play},
+  l1:{show:{pos:V(-5.5,5,5.5),tgt:V(2.6,1.7,-4.4),fov:32,ox:-330,oy:-10},work:{pos:V(-9,9,9),tgt:V(2.4,1.4,-4.2),fov:32,ox:560,oy:0}},
+  l2:{show:{pos:V(-6,4,13.5),tgt:V(1.6,.6,4.4),fov:32,ox:-330,oy:0},work:{pos:V(-9.5,8,15),tgt:V(1.4,.6,4.4),fov:32,ox:560,oy:0}},
+  l3:{show:{pos:V(.5,4.6,7.5),tgt:V(7.8,1.5,-1.6),fov:32,ox:-330,oy:-10},work:{pos:V(-2,8,10.5),tgt:V(7.6,1.3,-1.6),fov:32,ox:560,oy:0}},
+  l4:{show:{pos:V(6.4,5.2,2.8),tgt:V(13.7,1.6,-5.6),fov:32,ox:-330,oy:-10},work:{pos:V(4.4,8.5,5.4),tgt:V(13.6,1.4,-5.6),fov:32,ox:560,oy:0}},
+  finale:{show:{pos:V(-2,44,36),tgt:V(2.6,0,1),fov:34,ox:0,oy:40},work:{pos:V(-2,44,36),tgt:V(2.6,0,1),fov:34,ox:-420,oy:40}}
+ };
+ // переходы камеры — по времени с плавным разгоном и торможением, пролёт идёт дугой вверх
+ let target=presets.pre,from=null,tt=1,dur=1,arc=0,blurTo=0,blurNow=0,curKey='';
+ api.station=null;
+ api.goStation=(key,phase='show',{snap=false,time}={})=>{
+  const st=ST[key];if(!st)return;const p=st[phase];const k=key+':'+phase;if(k===curKey&&!snap)return;curKey=k;
+  api.station=key;api.phase=phase;api.mode=key==='l0'&&phase==='work'?'play':'station';
+  blurTo=phase==='work'&&key!=='l0'?(key==='finale'?3.2:4.2):0;
+  ctx.throttle=phase==='work'&&key!=='l0'?(TIER.name==='low'?3:2):1;
+  if(snap){target=p;from=null;blurNow=blurTo;return}
+  const longHop=from===null&&target===presets.pre;
+  from={pos:cam.pos.clone(),tgt:cam.tgt.clone(),fov:cam.fov,ox:cam.ox,oy:cam.oy};target=p;tt=0;
+  const d=from.pos.distanceTo(p.pos);dur=time||(phase==='work'?1.6:Math.min(3.2,1.9+d*.035));arc=phase==='work'?0:Math.min(6,d*.18);
+  if(phase==='show')sfx.whoosh(dur*.8);
+ };
+ api.pause=v=>{ctx.paused=!!v};
  api.mode='pre';
  api.setMode=m=>{if(!presets[m]||api.mode===m)return;
   // первый переход из «pre» — сразу в ракурс, без второго пролёта камеры после занавеса
@@ -244,6 +287,17 @@ export function createNetwork(parent,{quality=1}={}){
  api.setPointer=(x,y)=>{api.pointer.x=x;api.pointer.y=y};
  camera.position.copy(cam.pos);
  const look=new THREE.Vector3();
+
+ // ===== финал: купол защиты закрывает всю сеть, угрозы гаснут =====
+ const bigDome=new THREE.Mesh(new THREE.SphereGeometry(24,128,64,0,Math.PI*2,0,Math.PI/2),new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,
+  uniforms:{uTime:{value:0},uHex:{value:.5},uR:{value:24},uScan:{value:-1},uColor:{value:new THREE.Color(.16,.7,.5)},uHit:{value:[0,1,2,3].map(()=>new THREE.Vector4(0,1,0,-1))}},vertexShader:domeShader.vertex,fragmentShader:domeShader.fragment}));
+ bigDome.position.copy(W(640,330));bigDome.visible=false;scene.add(bigDome);let bigT=0;
+ api.calm=false;
+ api.finale=()=>{api.calm=true;bigT=0;bigDome.visible=true;bigDome.scale.setScalar(.08);
+  for(let i=live.length-1;i>=0;i--){if(live[i].r.kind==='threat'){const k=live[i];const [x,y]=k.r.p.at(k.d);sparks.emit(W(x,y,.4),24,{speed:3,color:[.5,1.8,1.2],size:.12,life:.8,gravity:-2});live.splice(i,1)}}
+  core.material.emissive.setHex(0x06261c);coreW.material.color.setRGB(.3,1.4,1);core2.material.color.setRGB(.4,1.8,1.2);
+  rings.fire(W(640,330,.05),[.4,1.8,1.2],18,1.6,true);rings.fire(W(640,330,.05),[.3,1.2,.9],11,1.2,true);ctx.kick(.35)};
+ api.resetFinale=()=>{api.calm=false;bigDome.visible=false;core.material.emissive.setHex(0x2a0604);coreW.material.color.setRGB(1.8,.2,.1);core2.material.color.setRGB(3.2,.35,.2)};
 
  // ===== API слотов =====
  api.setSlotsVisible=v=>{const was=api.slotsVisible;api.slotsVisible=v;let i=0;
@@ -271,16 +325,21 @@ export function createNetwork(parent,{quality=1}={}){
  let dust=0,streamAcc=0,ringT=0,punch=0;
  ctx.add((dt,t)=>{
   // камера
-  if(from&&tt<1){tt=Math.min(1,tt+dt/dur);const e=1-Math.pow(1-tt,4);
-   cam.pos.lerpVectors(from.pos,target.pos,e);cam.tgt.lerpVectors(from.tgt,target.tgt,e);cam.fov=lerp(from.fov,target.fov,e);cam.ox=lerp(from.ox,target.ox,e);cam.oy=lerp(from.oy,target.oy,e)}
+  if(from&&tt<1){tt=Math.min(1,tt+dt/dur);const e=tt<.5?4*tt*tt*tt:1-Math.pow(-2*tt+2,3)/2,b=Math.sin(Math.PI*tt);
+   cam.pos.lerpVectors(from.pos,target.pos,e);cam.pos.y+=b*arc;cam.tgt.lerpVectors(from.tgt,target.tgt,e);cam.fov=lerp(from.fov,target.fov,e)+b*3;cam.ox=lerp(from.ox,target.ox,e);cam.oy=lerp(from.oy,target.oy,e);
+   if(arc>0)ctx.aberrate(b*.35)}
   else if(!from){cam.pos.copy(target.pos);cam.tgt.copy(target.tgt);cam.fov=target.fov;cam.ox=target.ox;cam.oy=target.oy}
   const sway=api.mode==='attract'?.35:0;
   camera.position.set(cam.pos.x+Math.sin(t*.12)*1.3*sway+api.pointer.x*.9*sway,cam.pos.y+Math.sin(t*.17)*.35*sway+api.pointer.y*-.4*sway,cam.pos.z+Math.cos(t*.1)*.8*sway);
   const sh=ctx.fx.shake;if(sh>.001){camera.position.x+=(Math.random()-.5)*sh*.5;camera.position.y+=(Math.random()-.5)*sh*.35}
   look.copy(cam.tgt);camera.lookAt(look);
+  blurNow=lerp(blurNow,blurTo+(from&&tt<1&&arc>0?Math.sin(Math.PI*tt)*1.6:0),1-Math.exp(-dt*3));ctx.focus(blurTo>0&&!(from&&tt<1)?2.5:camera.position.distanceTo(cam.tgt),blurNow);
+  if(agent.userData.orb){agent.userData.orb.rotation.z=t*.5;agent.userData.pearl.position.y=1.75+Math.sin(t*1.3)*.06}
+  if(bigDome.visible){bigT+=dt;const k=Math.min(1,bigT/2.4),e=1-Math.pow(1-k,3);bigDome.scale.setScalar(.08+.92*e);bigDome.material.uniforms.uTime.value=t;bigDome.material.uniforms.uScan.value=k<1?k*1.15:-1;bigDome.material.opacity=1}
   punch*=Math.pow(.02,dt);camera.fov=cam.fov-punch*2.6;
   camera.setViewOffset(ctx.w,ctx.h,cam.ox*ctx.w/1920,cam.oy*ctx.h/1080,ctx.w,ctx.h);camera.updateProjectionMatrix();
 
+  flow.update(t,ctx.h);
   // пул угроз
   hive.rotation.y=t*.2;
   hive.position.y=6.2;
@@ -330,6 +389,7 @@ export function createNetwork(parent,{quality=1}={}){
   const now=performance.now();
   for(const r of routes){
    if(r.needs&&!api.placed[r.needs])continue;
+   if(api.calm&&r.kind==='threat')continue;
    const due=last[r.id]??(tStart+r.delay-r.every);
    if(now-due>=r.every){last[r.id]=now;live.push({r,d:0})}
   }

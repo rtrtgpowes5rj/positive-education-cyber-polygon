@@ -2,6 +2,7 @@ import {createStage,THREE,toon,glow,outline,sprite,Sparks,hdr,lerp,ease} from '.
 import {domeShader} from './network';
 import {gsap} from 'gsap';
 import {buildPlanet,orbitRing} from './planet';
+import {sfx} from '../audio';
 import {studio,rbox} from './kit';
 
 // Главный экран: точечный глобус «ландшафт угроз». Дуги атак летят со всего мира в одну точку — вашу сеть.
@@ -119,7 +120,7 @@ export function createHero(parent,{quality=1}={}){
  // onCover вызывается заранее, чтобы занавес успел закрыть кадр до смены сцены.
  const dv={px:0,py:0,roll:0};let diveTw=null;
  api.dive=({onCover,coverAt=.58}={})=>{
-  if(api.diving)return;api.diving=true;
+  if(api.diving)return;api.diving=true;sfx.whoosh(2.2);
   const d0=cam.d*zoom,ox0=cam.ox,fov0=cam.fov;dv.px=api.pointer.x;dv.py=api.pointer.y;const px0=dv.px,py0=dv.py;
   cam.d=d0;
   diveFrom.copy(globe.quaternion);diveTo.setFromUnitVectors(tN,new THREE.Vector3(.08,.16,1).normalize());

@@ -19,7 +19,7 @@ export const TOKENS=[
  {id:'listen',label:'порт 443',pos:[3.3,1.9,1.4],dev:'web'},
  {id:'snmp',label:'SNMP',pos:[-4.0,1.9,-2.6],dev:'sw'},
  {id:'telnet',label:'Telnet',pos:[-4.0,1.9,-6.4],dev:'sw'},
- {id:'log',label:'логи → SIEM',pos:[3.4,1.9,-3.2],dev:'sw'}
+ {id:'log',label:'логи в SIEM',pos:[3.4,1.9,-3.2],dev:'sw'}
 ];
 
 export function createConfigRoom(parent,{quality=1,cb={}}={}){

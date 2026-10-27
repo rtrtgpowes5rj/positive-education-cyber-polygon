@@ -1,11 +1,9 @@
 import React,{useEffect,useRef} from 'react';
-import {createFlowTunnel,createAttackGraph} from './panels';
 import {createAgentSandbox} from './sandbox';
 import {createConfigRoom} from './room';
-import {createAttackBoard} from './board';
 import {webglOK} from './core';
 
-const makers={room:createConfigRoom,board:createAttackBoard,tunnel:createFlowTunnel,graph:createAttackGraph,agent:createAgentSandbox};
+const makers={room:createConfigRoom,agent:createAgentSandbox};
 
 // Панель с отдельной 3D-сценой. Управляется через ref.current (api) и state.
 export default function Panel3D({kind,state,apiRef,className='',opts,children,title}){

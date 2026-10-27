@@ -1,14 +1,13 @@
 import * as THREE from 'three';
-import {EffectComposer} from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import {RenderPass} from 'three/examples/jsm/postprocessing/RenderPass.js';
-import {UnrealBloomPass} from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import {ShaderPass} from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import {OutputPass} from 'three/examples/jsm/postprocessing/OutputPass.js';
+import {EffectComposer,RenderPass,EffectPass,BloomEffect,SMAAEffect,SMAAPreset,ToneMappingEffect,ToneMappingMode,ChromaticAberrationEffect,DepthOfFieldEffect,Effect,BlendFunction} from 'postprocessing';
+import {N8AOPostPass} from 'n8ao';
 import {studio,rbox} from './kit';
-import {SMAAPass} from 'three/examples/jsm/postprocessing/SMAAPass.js';
+import {TIER,downgrade} from './tier';
 import {LineSegments2} from 'three/examples/jsm/lines/LineSegments2.js';
 import {LineSegmentsGeometry} from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import {LineMaterial} from 'three/examples/jsm/lines/LineMaterial.js';
+import {Text} from 'troika-three-text';
+import golosLC from '../assets/golos-700-latcyr.woff?url'; // Golos 700: латиница + кириллица в одном файле (склеено fontTools)
 
 export {THREE};
 export const PAL={ink:0xece6da,red:0xfc3e24,mint:0x7fe0b5,amber:0xf2c566,bg:0x0c0d0f,dim:0x8b8d93};
@@ -21,57 +20,71 @@ export function webglOK(){
  return _gl;
 }
 
-// ---------- финальный проход: аберрация, виньетка, зерно ----------
-const FinalShader={
- uniforms:{tDiffuse:{value:null},uTime:{value:0},uAb:{value:0.0003},uVig:{value:0.85},uGrain:{value:0.0},uFlash:{value:0},uRes:{value:new THREE.Vector2(1920,1080)}},
- vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
- fragmentShader:`
- uniform sampler2D tDiffuse;uniform float uTime,uAb,uVig,uGrain,uFlash;uniform vec2 uRes;varying vec2 vUv;
- float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
- void main(){
-  vec2 c=vUv-.5;float d=dot(c,c);
-  vec2 off=c*uAb*(.5+d*3.);
-  vec3 col=vec3(texture2D(tDiffuse,vUv+off).r,texture2D(tDiffuse,vUv).g,texture2D(tDiffuse,vUv-off).b);
-  col*=1.-d*uVig*1.5;
-  col+=vec3(.55,.04,.02)*uFlash*(.25+d*2.2);
-  float g=h(vUv*uRes)-.5;
-  col+=g*uGrain;
-  gl_FragColor=vec4(col,1.);
- }`
-};
+// ---------- цветовой грейд: холодные тени, тёплые света, мягкая S-кривая, виньетка, зерно, красная вспышка ----------
+const gradeFrag=`
+uniform float uVig;uniform float uGrain;uniform float uFlash;uniform float uTime;
+float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+void mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){
+ vec3 c=inputColor.rgb;
+ float l=dot(c,vec3(.2126,.7152,.0722));
+ c=mix(c,c*vec3(.93,1.,1.09),(1.-smoothstep(0.,.45,l))*.55);
+ c=mix(c,c*vec3(1.05,1.,.94),smoothstep(.45,1.,l)*.45);
+ c=clamp(c,0.,1.);c=mix(c,c*c*(3.-2.*c),.16);
+ vec2 d=uv-.5;float v=dot(d,d);
+ c*=1.-v*uVig*1.35;
+ c+=vec3(.55,.04,.02)*uFlash*(.25+v*2.2);
+ c+=(h(uv*resolution+fract(uTime*7.13)*91.)-.5)*uGrain;
+ outputColor=vec4(c,inputColor.a);
+}`;
+class GradeEffect extends Effect{
+ constructor(){super('GradeEffect',gradeFrag,{blendFunction:BlendFunction.NORMAL,uniforms:new Map([['uVig',new THREE.Uniform(.85)],['uGrain',new THREE.Uniform(.014)],['uFlash',new THREE.Uniform(0)],['uTime',new THREE.Uniform(0)]])})}
+}
 
-// Занавес ждёт, пока все живые 3D-сцены отрисуют n кадров (шейдеры скомпилированы, кадр не пустой)
+// Переход ждёт, пока все живые 3D-сцены отрисуют n кадров (шейдеры скомпилированы, кадр не пустой)
 export function stagesWarm(n=3,timeout=4000){
  const t0=performance.now();
  return new Promise(r=>{const f=()=>{const st=[...(window.__stages||[])].filter(c=>!c.dead);
-  if(st.every(c=>(c.frames||0)>=n)||performance.now()-t0>timeout)r();else requestAnimationFrame(f)};requestAnimationFrame(f)});
+  if(st.filter(c=>!c.paused).every(c=>(c.frames||0)>=n)||performance.now()-t0>timeout)r();else requestAnimationFrame(f)};requestAnimationFrame(f)});
 }
 
-export function createStage(parent,{bg=0x0c0d0f,fog=0.0,bloom=[0.7,0.55,0.9],shadows=true,fov=32,quality=1,maxDpr=2}={}){
+// Сцена: рендерер + постобработка pmndrs. Набор эффектов зависит от уровня качества (tier.js):
+// N8AO (мягкое затенение) → свечение по яркости → [глубина резкости] → ACES → грейд → SMAA → [аберрация]
+export function createStage(parent,{bg=0x0c0d0f,fog=0.0,bloom=[0.7,0.55,0.9],shadows=true,fov=32,quality=1,ao=false,dof=false,aoRadius=1.4,aoIntensity=2.2}={}){
  const w=parent.clientWidth||1920,h=parent.clientHeight||1080;
- const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});
- const dpr=Math.min(maxDpr,1.5,quality);
+ const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance',stencil:false,depth:false});
+ const dpr=Math.min(TIER.dprCap,quality);
  renderer.setPixelRatio(dpr);renderer.setSize(w,h,false);
- renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
+ renderer.toneMapping=THREE.NoToneMapping;
  if(shadows){renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap}
  renderer.domElement.className='gl-canvas';
  parent.appendChild(renderer.domElement);
  const scene=new THREE.Scene();scene.background=new THREE.Color(bg);
  if(fog)scene.fog=new THREE.FogExp2(bg,fog);
  const camera=new THREE.PerspectiveCamera(fov,w/h,0.1,300);
- const rt=new THREE.WebGLRenderTarget(w*dpr,h*dpr,{type:THREE.HalfFloatType});
- const composer=new EffectComposer(renderer,rt);
+ const composer=new EffectComposer(renderer,{frameBufferType:THREE.HalfFloatType});
  composer.addPass(new RenderPass(scene,camera));
- const bloomPass=new UnrealBloomPass(new THREE.Vector2(w,h),bloom[0],bloom[1],bloom[2]);
- composer.addPass(bloomPass);
- composer.addPass(new OutputPass());
- composer.addPass(new SMAAPass(w*dpr,h*dpr));
- const finalPass=new ShaderPass(FinalShader);finalPass.uniforms.uRes.value.set(w,h);
- composer.addPass(finalPass);
+ let aoPass=null;
+ if(ao&&TIER.ao){
+  aoPass=new N8AOPostPass(scene,camera,w,h);
+  Object.assign(aoPass.configuration,{aoRadius,distanceFalloff:.6,intensity:aoIntensity,aoSamples:TIER.aoHalf?12:16,denoiseSamples:TIER.aoHalf?4:8,denoiseRadius:12,halfRes:TIER.aoHalf,gammaCorrection:false,color:new THREE.Color(0,0,0)});
+  composer.addPass(aoPass);
+ }
+ const bloomFx=new BloomEffect({intensity:bloom[0]*1.9,luminanceThreshold:Math.max(.55,bloom[2]-.12),luminanceSmoothing:.12,mipmapBlur:true,radius:.55+bloom[1]*.35,resolutionScale:TIER.bloomScale});
+ let dofFx=null;
+ if(dof&&TIER.dof){dofFx=new DepthOfFieldEffect(camera,{focusDistance:.02,focalLength:.04,bokehScale:0,resolutionScale:.5})}
+ const tone=new ToneMappingEffect({mode:ToneMappingMode.ACES_FILMIC});
+ const grade=new GradeEffect();
+ composer.addPass(new EffectPass(camera,...[bloomFx,dofFx,tone,grade].filter(Boolean)));
+ if(TIER.smaa)composer.addPass(new EffectPass(camera,new SMAAEffect({preset:SMAAPreset.MEDIUM})));
+ const caFx=new ChromaticAberrationEffect({offset:new THREE.Vector2(0,0),radialModulation:true,modulationOffset:.15});
+ const caPass=new EffectPass(camera,caFx);composer.addPass(caPass);
+ // на экран выводит последний включённый проход (выключенный последний оставлял кадр чёрным)
+ const toScreen=()=>{let last=null;composer.passes.forEach(p=>{p.renderToScreen=false;if(p.enabled)last=p});if(last)last.renderToScreen=true};
+ caPass.enabled=false;toScreen();
  composer.setSize(w,h);
 
  const reg=(window.__stages=window.__stages||new Set());
- const ctx={renderer,scene,camera,composer,bloomPass,finalPass,parent,lineMats:new Set(),updaters:[],t:0,dead:false,w,h,
+ const ctx={renderer,scene,camera,composer,bloomFx,dofFx,aoPass,parent,lineMats:new Set(),updaters:[],t:0,dead:false,w,h,frames:0,
   fx:{shake:0,ab:0,flash:0},
   add(fn){ctx.updaters.push(fn);return fn},
   lineMat(color,width=1.6,opacity=1,dashed=false){
@@ -81,35 +94,52 @@ export function createStage(parent,{bg=0x0c0d0f,fog=0.0,bloom=[0.7,0.55,0.9],sha
   kick(s=1){ctx.fx.shake=Math.max(ctx.fx.shake,s)},
   aberrate(a=1){ctx.fx.ab=Math.max(ctx.fx.ab,a)},
   flashRed(a=1){ctx.fx.flash=Math.max(ctx.fx.flash,a)},
-  project(v){const p=v.clone().project(camera);return{x:(p.x+1)/2*w,y:(1-p.y)/2*h,z:p.z}},
+  // фокус: расстояние до объекта в мировых единицах и сила размытия (0 — выкл.)
+  focus(dist,blur){if(!dofFx)return;const cm=dofFx.cocMaterial;cm.worldFocusDistance=dist;cm.worldFocusRange=Math.max(2,dist*.35);dofFx.bokehScale=blur},
+  project(v){const p=v.clone().project(camera);return{x:(p.x+1)/2*ctx.w,y:(1-p.y)/2*ctx.h,z:p.z}},
   resize(){
    const W=parent.clientWidth,H=parent.clientHeight;if(!W||!H)return;
    ctx.w=W;ctx.h=H;renderer.setSize(W,H,false);composer.setSize(W,H);
-   camera.aspect=W/H;camera.updateProjectionMatrix();finalPass.uniforms.uRes.value.set(W,H);
+   camera.aspect=W/H;camera.updateProjectionMatrix();
    ctx.lineMats.forEach(m=>m.resolution.set(W,H));
   },
   dispose(){
    if(ctx.dead)return;reg.delete(ctx);
    ctx.dead=true;cancelAnimationFrame(raf);
    scene.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{for(const k in m){if(m[k]&&m[k].isTexture)m[k].dispose()}m.dispose()})}});
-   composer.dispose();rt.dispose();renderer.dispose();renderer.forceContextLoss();
+   composer.dispose();renderer.dispose();renderer.forceContextLoss();
    if(renderer.domElement.parentNode)renderer.domElement.parentNode.removeChild(renderer.domElement);
   }
  };
  reg.add(ctx);
  renderer.domElement.addEventListener('webglcontextlost',e=>{e.preventDefault();ctx.lost=true;if(!ctx.dead)console.warn('webgl context lost')});
  renderer.domElement.addEventListener('webglcontextrestored',()=>{ctx.lost=false;if(!ctx.dead)console.warn('webgl context restored')});
- let raf,last=performance.now(),acc=0,frames=0,curDpr=dpr,drops=0;
+
+ // прогрев: шейдеры компилируются один раз сразу после сборки сцены (за закрытым кадром перехода),
+ // чтобы первые кадры не дёргались. compileAsync в three r170 падает на части материалов — не используем.
+ let compiled=false;
+ setTimeout(()=>{if(ctx.dead)return;try{renderer.compile(scene,camera)}catch(e){}compiled=true},0);
+
+ let raf,last=performance.now(),acc=0,frames=0,curDpr=dpr,slow=0;
  const loop=now=>{
   if(ctx.dead)return;
-  const dt=Math.max(0,Math.min(/sim/.test(location.search)?0.1:0.05,(now-last)/1000));last=now;ctx.t+=dt;
-  if(document.hidden||ctx.paused){raf=requestAnimationFrame(loop);return}
+  const dt=Math.max(0,Math.min(/sim/.test(location.search)?0.1:0.05,(now-last)/1000));last=now;
+  if(document.hidden||!compiled||(ctx.paused&&ctx.frames>=2)){raf=requestAnimationFrame(loop);return}
+  ctx.t+=dt;
   for(const f of ctx.updaters){if(ctx.dead)return;f(dt,ctx.t)}
   if(ctx.dead)return;
   const fx=ctx.fx;fx.shake*=Math.pow(0.002,dt);fx.ab*=Math.pow(0.01,dt);fx.flash*=Math.pow(0.02,dt);
-  acc+=dt;frames++;if(acc>2.5){const avg=acc/frames;acc=0;frames=0;if(avg>0.045&&curDpr>0.8&&drops<2&&ctx.t<12){drops++;curDpr=Math.max(0.8,curDpr-0.3);renderer.setPixelRatio(curDpr);composer.setPixelRatio(curDpr)}}
-  finalPass.uniforms.uTime.value=ctx.t;finalPass.uniforms.uAb.value=0.0003+fx.ab*0.0028;finalPass.uniforms.uFlash.value=fx.flash;
-  if(!ctx.lost){composer.render(dt);ctx.frames=(ctx.frames||0)+1}
+  // адаптивное качество: при стабильной просадке сначала выключаем затенение, потом снижаем разрешение
+  acc+=dt;frames++;if(acc>2){const avg=acc/frames;acc=0;frames=0;
+   if(avg>0.034&&ctx.t>3&&!/sim/.test(location.search)){slow++;if(slow>=2){slow=0;
+    if(aoPass&&aoPass.enabled){aoPass.enabled=false;toScreen()}
+    else if(curDpr>.75){curDpr=Math.max(.75,curDpr-.25);renderer.setPixelRatio(curDpr);composer.setSize(ctx.w,ctx.h)}
+    else downgrade()}}else slow=0}
+  grade.uniforms.get('uTime').value=ctx.t;grade.uniforms.get('uFlash').value=fx.flash;
+  const ab=fx.ab*0.0028,caOn=ab>0.00015;if(caOn!==caPass.enabled){caPass.enabled=caOn;toScreen()}if(caOn)caFx.offset.set(ab,ab*.6);
+  // фон за интерфейсом можно рисовать реже (ctx.throttle): он размыт и почти неподвижен
+  ctx.tick=(ctx.tick||0)+1;
+  if(!ctx.lost&&(!(ctx.throttle>1)||ctx.tick%ctx.throttle===0||ctx.frames<3)){composer.render(dt);ctx.frames++}
   raf=requestAnimationFrame(loop);
  };
  raf=requestAnimationFrame(loop);
@@ -227,26 +257,30 @@ export const ease={out3:t=>1-Math.pow(1-t,3),inOut:t=>t<.5?4*t*t*t:1-Math.pow(-2
 export const lerp=(a,b,t)=>a+(b-a)*t;
 
 // ---------- подписи в 3D ----------
-export function labelSprite(text,{color='#ece6da',size=1.6,font='700 40px sans-serif',bg=null,onTop=true,pill=true}={}){
- const w=640,h=160,k=2; // текстура 2x: чёткий текст без «дрожания»
- const t=canvasTex(w,h,(g)=>{
-  if(bg){g.fillStyle=bg;g.fillRect(0,0,w,h)}
-  let px=parseInt(font.match(/(\d+)px/)[1])*k;const mk=p=>font.replace(/\d+px/,p+'px');
-  g.font=mk(px);while(g.measureText(text).width>w-40&&px>18){px-=2;g.font=mk(px)}
-  g.textAlign='center';g.textBaseline='middle';
-  if(pill){const tw=Math.min(w-8,g.measureText(text).width+px*.9),th=Math.min(h-8,px*1.35),x0=(w-tw)/2,y0=(h-th)/2,rr=th*.32;
-   g.fillStyle='rgba(9,10,12,.72)';g.beginPath();g.moveTo(x0+rr,y0);g.arcTo(x0+tw,y0,x0+tw,y0+th,rr);g.arcTo(x0+tw,y0+th,x0,y0+th,rr);g.arcTo(x0,y0+th,x0,y0,rr);g.arcTo(x0,y0,x0+tw,y0,rr);g.closePath();g.fill();
-   g.strokeStyle='rgba(255,255,255,.12)';g.lineWidth=3;g.stroke()}
-  g.fillStyle=color;g.shadowColor='#000';g.shadowBlur=pill?0:14;g.fillText(text,w/2,h/2+4);
- });
- t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;t.anisotropy=8;
- const m=new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false,depthTest:!onTop,toneMapped:false});
- const s=new THREE.Sprite(m);s.scale.set(size*4,size,1);if(onTop)s.renderOrder=20;return s;
+// Подпись в 3D: SDF-текст (troika) шрифтом Golos — чёткий на любом масштабе и в перспективе.
+// Шрифт собирается из локальных файлов латиницы и кириллицы (стенд может быть без интернета).
+// Всегда повёрнута к камере, под текстом — скруглённая подложка.
+const _q=new THREE.Quaternion(),_pq=new THREE.Quaternion();
+function pillGeo(w,h){const r=h/2,x=-w/2,y=-h/2,sh=new THREE.Shape();sh.moveTo(x+r,y);sh.lineTo(x+w-r,y);sh.absarc(x+w-r,0,r,-Math.PI/2,Math.PI/2);sh.lineTo(x+r,y+h);sh.absarc(x+r,0,r,Math.PI/2,Math.PI*1.5);return new THREE.ShapeGeometry(sh,12)}
+export function labelSprite(text,{color='#ece6da',size=1.6,onTop=true,pill=true,weight}={}){
+ const g=new THREE.Group();
+ const t=new Text();t.text=text;t.font=golosLC;t.fontSize=size*.4;t.color=new THREE.Color(color);t.anchorX='center';t.anchorY='middle';t.letterSpacing=-.005;t.sdfGlyphSize=64;
+ if(!pill){t.outlineWidth='8%';t.outlineColor=0x000000;t.outlineOpacity=.55}
+ t.renderOrder=onTop?22:0;g.add(t);
+ t.sync(()=>{const tm=t.material;if(onTop){tm.depthTest=false;tm.depthWrite=false}
+  if(!pill)return;const b=t.textRenderInfo&&t.textRenderInfo.blockBounds;if(!b)return;
+  const w=(b[2]-b[0])+size*.36,h=(b[3]-b[1])+size*.2;
+  const bgm=new THREE.MeshBasicMaterial({color:0x090a0c,transparent:true,opacity:.74,depthTest:!onTop,depthWrite:false,toneMapped:false});
+  const plate=new THREE.Mesh(pillGeo(w,h),bgm);plate.position.z=-.002;plate.renderOrder=onTop?21:0;g.add(plate);
+  const edge=new THREE.Mesh(pillGeo(w+size*.02,h+size*.02),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.1,depthTest:!onTop,depthWrite:false,toneMapped:false}));edge.position.z=-.003;edge.renderOrder=onTop?20:0;g.add(edge)});
+ // поворот к камере прямо перед отрисовкой (с учётом поворота родителей)
+ const own=t.onBeforeRender;t.onBeforeRender=function(r,sc,cam,...rest){g.parent?g.parent.getWorldQuaternion(_pq).invert():_pq.identity();g.quaternion.copy(_pq.multiply(cam.getWorldQuaternion(_q)));g.updateMatrixWorld(true);return own&&own.call(this,r,sc,cam,...rest)};
+ return g;
 }
 
 // базовая сцена для панелей: свет, тёмный пол, камера
 export function panelScene(parent,{quality=1,pos=[0,8,12],look=[0,1,0],fov=34,bloom=[0.6,0.5,0.9],bg=0x0e0f12,sway=0}={}){
- const ctx=createStage(parent,{bg,fog:0.026,quality,bloom});
+ const ctx=createStage(parent,{bg,fog:0.026,quality,bloom,ao:true,aoRadius:1.1,aoIntensity:2});
  const {scene,camera}=ctx;
  studio(ctx.renderer,scene,{intensity:.45});
  scene.add(new THREE.HemisphereLight(0x9aa6c4,0x1a1410,0.35));

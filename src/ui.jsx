@@ -2,6 +2,7 @@ import React,{useLayoutEffect,useEffect,useMemo,useRef,useState} from 'react';
 import {gsap} from 'gsap';
 import qrcode from 'qrcode-generator';
 import {people} from './data';
+import {sound,toggleSound,sfx} from './audio';
 
 export const reduced=()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -17,6 +18,16 @@ export const stagePt=e=>{
  const r=el.getBoundingClientRect(),k=r.width/1920;
  return{x:(e.clientX-r.left)/k,y:(e.clientY-r.top)/k};
 };
+
+// Кнопка звука: тихий фон и звуки действий, выбор запоминается
+export function SoundToggle({className=''}){
+ const [on,setOn]=useState(sound.on);
+ useEffect(()=>sound.sub(setOn),[]);
+ return <button type="button" className={'sound-btn '+className+(on?' on':'')} onClick={e=>{e.stopPropagation();toggleSound()}} aria-label={on?'Выключить звук':'Включить звук'} aria-pressed={on}>
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/>{on?<><path d="M15.5 9a4 4 0 0 1 0 6" className="sw"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11" className="sw"/></>:<path d="M16 9.5l5 5M21 9.5l-5 5" className="sw"/>}</svg>
+  <span>{on?'Звук':'Без звука'}</span>
+ </button>;
+}
 
 export const Btn=({children,className='',...p})=><button className={'btn '+className} {...p}><span>{children}</span><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 12.5c4 .6 9-.4 15.5-.4M13 6l6 6.2-6 5.8" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg></button>;
 
@@ -82,27 +93,32 @@ export function useThread(level){
  const [hi,setHi]=useState(0);
  // вступление коллеги — одна реплика из двух абзацев: в кадре одна мысль, её успевают дочитать
  const [msgs,setMsgs]=useState(()=>[{id:++msgId,who:level.who,text:level.chat.join('\n'),tone:'',delay:700}]);
- const say=(text,tone='',who)=>setMsgs(m=>[...m,{id:++msgId,who:who||level.who,text,tone,delay:0}].slice(-12));
+ const say=(text,tone='',who)=>{if(tone==='ok')sfx.good();else if(tone==='error')sfx.bad();else if(tone==='hint')sfx.hint();setMsgs(m=>[...m,{id:++msgId,who:who||level.who,text,tone,delay:0}].slice(-12))};
  const hint=()=>{if(hi>=level.hints.length)return;setHi(hi+1);hintStat.n++;say(level.hints[hi],'hint')};
  return{msgs,say,hint,hintsLeft:level.hints.length-hi};
 }
 
-function Typed({text,delay=0}){
+function Typed({text,delay=0,onState}){
  const [n,setN]=useState(reduced()?text.length:0);
  useEffect(()=>{
-  if(reduced())return;
-  let i=0,iv,t;const off=onLift(()=>{t=setTimeout(()=>{iv=setInterval(()=>{i+=2;setN(i);if(i>=text.length)clearInterval(iv)},18)},delay)});
+  if(reduced()){onState&&onState(false);return}
+  let i=0,iv,t;const off=onLift(()=>{t=setTimeout(()=>{onState&&onState(true);iv=setInterval(()=>{i+=2;setN(i);if(i>=text.length){clearInterval(iv);onState&&onState(false)}},18)},delay)});
   return()=>{off();clearTimeout(t);clearInterval(iv)};
  },[text,delay]);
  return <>{text.slice(0,n)}{n<text.length&&<i className="caret"/>}</>;
 }
 
-export const Avatar=({who,size=44})=>{
+// Живой аватар коллеги. Состояния: talk (печатает реплику), ok, error, hint — реакция на ход игрока.
+// Тот же интерфейс (who, mood, talk) готов к замене на персонажа из Rive.
+export const Avatar=({who,size=44,mood='',talk=false})=>{
  const p=people[who];
- return <svg className="avatar" viewBox="0 0 48 48" width={size} height={size} aria-hidden="true">
-  <circle cx="24" cy="24" r="23" className="av-c"/>
-  <text x="24" y="30" textAnchor="middle" className="av-t">{p.ini}</text>
- </svg>;
+ return <span className={'avatar avatar-live'+(mood?' m-'+mood:'')+(talk?' talk':'')} style={{width:size,height:size}} aria-hidden="true">
+  <svg viewBox="0 0 48 48" width={size} height={size}>
+   <circle cx="24" cy="24" r="22" className="av-c"/>
+   <circle cx="24" cy="24" r="22.5" className="av-ring" pathLength="100"/>
+   <text x="24" y="29.5" textAnchor="middle" className="av-t">{p.ini}</text>
+  </svg>
+ </span>;
 };
 
 const Tick=({on})=><svg className={'tick'+(on?' on':'')} viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
@@ -111,10 +127,13 @@ const Tick=({on})=><svg className={'tick'+(on?' on':'')} viewBox="0 0 24 24" wid
 </svg>;
 
 // Реплика коллеги: в кадре всегда одна — новая поднимается, прежняя уходит вверх; вся переписка — в «Истории»
-const Bubble=({m,cls})=><div className={'coach-msg '+m.tone+' '+cls}>
- <div className="cm-who"><Avatar who={m.who} size={40}/><small>{people[m.who].name}<em>{people[m.who].role}</em></small></div>
- <p><Typed text={m.text} delay={m.delay}/></p>
-</div>;
+function Bubble({m,cls}){
+ const [talk,setTalk]=useState(false);
+ return <div className={'coach-msg '+m.tone+' '+cls}>
+  <div className="cm-who"><Avatar who={m.who} size={40} mood={m.tone} talk={talk}/><small>{people[m.who].name}<em>{people[m.who].role}</em></small><i className={'voice'+(talk?' on':'')} aria-hidden="true"><b/><b/><b/><b/></i></div>
+  <p><Typed text={m.text} delay={m.delay} onState={setTalk}/></p>
+ </div>;
+}
 function Coach({thread}){
  const ms=thread.msgs,cur=ms[ms.length-1],prev=ms.length>1?ms[ms.length-2]:null;
  return <div className="coach">
@@ -158,6 +177,7 @@ function Digit({d,delay,dur}){
  useLayoutEffect(()=>{const el=ref.current;
   if(reduced()){gsap.set(el,{yPercent:-d*10});cur.current=d;return}
   const from=cur.current;el.classList.toggle('roll',from!==d);
+  if(from!==d){const n=Math.min(6,Math.abs(d-from));for(let k=0;k<n;k++)setTimeout(sfx.tick,(delay+k*dur*.11)*1000)}
   const tw=gsap.fromTo(el,{yPercent:-from*10},{yPercent:-d*10,duration:dur,delay,ease:'expo.out',onComplete:()=>{el.classList.remove('roll')}});
   cur.current=d;return()=>tw.kill()},[d]);
  return <span className="odo-d"><span className="odo-s" ref={ref}>{DIG.map(c=><i key={c}>{c}</i>)}</span><span className="odo-sz">0</span></span>;

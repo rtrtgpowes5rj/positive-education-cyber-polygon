@@ -1,6 +1,6 @@
 {
   "name": "positive-education-cyber-polygon",
-  "version": "17.0.0",
+  "version": "18.0.0",
   "private": true,
   "description": "Интерактивная 3D-игра для стенда Positive Education",
   "scripts": {
@@ -10,16 +10,17 @@
   },
   "keywords": [],
   "dependencies": {
-    "@fontsource/caveat": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "gsap": "^3.13.0",
-    "lucide-react": "^0.468.0",
+    "n8ao": "^2.0.1",
+    "postprocessing": "^6.39.5",
     "qrcode-generator": "^2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "roughjs": "^4.6.6",
     "three": "^0.170.0",
     "topojson-client": "^3.1.0",
+    "troika-three-text": "^0.52.5",
     "world-atlas": "^2.0.2"
   },
   "devDependencies": {
