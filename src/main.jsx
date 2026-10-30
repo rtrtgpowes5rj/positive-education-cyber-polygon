@@ -15,7 +15,7 @@ import {sfx,ambientMood} from './audio';
 import Showcase from './Showcase';
 import Demo,{demoOrder} from './Demo';
 import {accScore,speedScore,blitzScore,makeResult,fmtTime} from './scoring';
-import {loadBoard,placeOf,addRecord} from './records';
+import {loadBoard,addRecord,seedBoard} from './records';
 import {NickPrompt,BoardAdmin,MiniBoard,AttBoard} from './RecordsUI';
 import Perimeter from './levels/Perimeter';
 import Hardening from './levels/Hardening';
@@ -82,7 +82,7 @@ function Attract({onStart,onDemo,diving,locked}){
    <p className="att-anim">Расставьте защиту, настройте конфигурации, найдите атакующего в трафике и событиях — и проверьте код ИИ-агента до мёржа.</p>
    <ol className="att-anim att-levels">{levels.map(l=><li key={l.id}>{l.name}</li>)}</ol>
    <Btn className="att-anim primary big" onClick={e=>{e.stopPropagation();onStart()}}>Начать смену</Btn>
-   <p className="att-anim att-how">Пять уровней, около пяти минут. В финале — программы обучения с QR.</p>
+   <p className="att-anim att-how">Пять уровней, около пяти минут. В финале — рейтинг и рекомендации по развитию.</p>
   </div>
   <AttBoard/>
   <SoundToggle className="att-sound"/>
@@ -174,7 +174,7 @@ function Results({results,onNext,onRestart,nick,onSaved}){
  const total=results.reduce((s,r)=>s+r.total,0),playSecs=results.reduce((s,r)=>s+r.secs+r.blitzSecs,0),speedSum=results.reduce((s,r)=>s+r.speed,0);
  const ref=useRef(),num=useRef(),barMax=Math.max(200,...results.map(r=>r.total));
  // результат пишется в таблицу сразу под ником, указанным перед сменой
- const [{place,mine}]=useState(()=>{const place=nick?placeOf(total,playSecs):null;return{place,mine:place?addRecord(nick,total,playSecs).at:null}});
+ const [{place,at:mine,kept}]=useState(()=>nick?addRecord(nick,total,playSecs):{});
  useEffect(()=>{
   if(mine&&onSaved)onSaved(mine);
   if(!reduced()){
@@ -188,7 +188,7 @@ function Results({results,onNext,onRestart,nick,onSaved}){
    <span className="f-anim kicker">Смена закончена · время прохождения {fmtTime(playSecs)}</span>
    <h1 className="f-anim">Атака<br/><em>остановлена.</em></h1>
    <div className="f-anim score"><Odo value={total} delay={.55} dur={1.9}/><em className="rank-stamp">{rankFor(total)}</em></div>
-   <div className="f-anim r-meta"><span>бонус скорости <b>+{speedSum}</b></span>{mine&&<span>{nick} · место на стенде <b>{place}</b></span>}</div>
+   <div className="f-anim r-meta"><span>бонус скорости <b>+{speedSum}</b></span>{mine&&<span>{nick} · место на стенде <b>{place}</b></span>}{kept&&<span>ваш лучший результат <b>{kept}</b></span>}</div>
    <div className="f-anim r-btns"><Btn className="primary big" onClick={onNext}>К программам обучения</Btn><button className="ghost-btn" onClick={onRestart}>Пройти заново</button></div>
   </section>
   <section className="r-right">
@@ -261,7 +261,7 @@ function App(){
  const cid=useRef(0),snapRef=useRef(true);
  const [results,setResults]=useState([]),[pending,setPending]=useState(null),[t0,setT0]=useState(0),[seconds,setSeconds]=useState(0),[runId,setRunId]=useState(0);
  const [myRec,setMyRec]=useState(null),[demo,setDemo]=useState(false),[idleLeft,setIdleLeft]=useState(null),[diving,setDiving]=useState(false);
- const [trans,setTrans]=useState(null),[impact,setImpact]=useState(0),[tour,setTour]=useState(-1),[nick,setNick]=useState(''),[askNick,setAskNick]=useState(false);
+ const [trans,setTrans]=useState(null),[impact,setImpact]=useState(0),[tour,setTour]=useState(-1),[nick,setNick]=useState(''),[askNick,setAskNick]=useState(false),[,setBoardV]=useState(0);
  const keyRef=useRef(''),lastTouch=useRef(Date.now()),demoRef=useRef(false),lvT0=useRef(Date.now()),[admin,setAdmin]=useState(false);demoRef.current=demo;
  useEffect(()=>{const k=e=>{if(e.ctrlKey&&e.shiftKey&&(e.key==='L'||e.key==='l'||e.key==='Д'||e.key==='д')){e.preventDefault();setAdmin(a=>!a)}};addEventListener('keydown',k);return()=>removeEventListener('keydown',k)},[]);
  // мир ↔ экран
@@ -383,8 +383,11 @@ function App(){
   {impact>0&&<i key={impact} className="impact" aria-hidden="true"/>}
   {curtain&&<Curtain key={curtain.id} level={curtain.lv!=null?levels[curtain.lv]:null} lv={curtain.lv??0} onCovered={curtain.covered} onLift={curtain.lifted} onDone={()=>setCurtain(c=>c&&c.id===curtain.id?null:c)}/>}
   {idleLeft!=null&&!demo&&<IdleWarn left={idleLeft}/>}
-  {demo&&<Demo at={demoAt} onGo={go} onExit={exitDemo}/>}
+  {demo&&<Demo at={demoAt} onGo={go} onExit={exitDemo} onBoard={()=>setBoardV(v=>v+1)}/>}
   {admin&&<BoardAdmin onClose={()=>setAdmin(false)}/>}
  </div></div>;
 }
+// ссылка ?seed — тестовые результаты на этом устройстве
+const qs=new URLSearchParams(location.search);
+if(qs.has('seed')){seedBoard();qs.delete('seed');const q=qs.toString();history.replaceState(null,'',location.pathname+(q?'?'+q:'')+location.hash)}
 createRoot(document.getElementById('root')).render(<App/>);

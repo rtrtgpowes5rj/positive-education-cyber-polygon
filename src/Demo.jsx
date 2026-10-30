@@ -1,8 +1,9 @@
 import React,{useState} from 'react';
 import {levels} from './data';
+import {seedBoard,clearBoard} from './records';
 
 // Демо-режим: свободная навигация по всем экранам без прохождения
-export default function Demo({at,onGo,onExit}){
+export default function Demo({at,onGo,onExit,onBoard}){
  const [open,setOpen]=useState(false);
  const items=[
   {id:'attract',label:'Заставка'},
@@ -17,6 +18,8 @@ export default function Demo({at,onGo,onExit}){
    <button className="demo-step" onClick={()=>onGo('prev')} aria-label="Назад">←</button>
    {items.map(it=><button key={it.id} className={at===it.id?'on':''} onClick={()=>onGo(it.id)}>{it.label}</button>)}
    <button className="demo-step" onClick={()=>onGo('next')} aria-label="Вперёд">→</button>
+   <button className="demo-top" onClick={()=>{seedBoard();onBoard()}}>Нагенерить топ</button>
+   <button onClick={()=>{if(confirm('Очистить весь топ, включая настоящие результаты?')){clearBoard();onBoard()}}}>Очистить топ</button>
    <button className="demo-exit" onClick={onExit}>Выйти из демо</button>
   </nav>}
  </div>;

@@ -1076,3 +1076,9 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .ab-foot button,.ab-foot a{padding:10px 0;font-size:14px;color:var(--mute);transition:color .2s}
 .ab-foot button:hover,.ab-foot a:hover{color:var(--ink)}
 .attract.diving .att-board{opacity:0;transition:opacity .4s}
+
+/* v18.3: занятый ник, кнопки топа в демо */
+.nick-head p.nick-err{color:var(--red)}
+.nick-field.taken{border-color:var(--red)}.nick-field.taken i{background:var(--red)}
+.demo-bar .demo-top{margin-left:10px}
+.attract p.att-how{max-width:none;white-space:nowrap}

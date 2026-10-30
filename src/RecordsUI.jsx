@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {gsap} from 'gsap';
 import {Btn,reduced} from './ui';
 import {fmtTime} from './scoring';
-import {loadBoard,removeRecord,clearBoard} from './records';
+import {loadBoard,removeRecord,clearBoard,nickTaken} from './records';
 import {VList} from './VList';
 
 const LAYOUTS={
@@ -17,7 +17,8 @@ export function NickPrompt({onSave,onCancel}){
  useEffect(()=>{if(!reduced())gsap.from(ref.current,{y:50,opacity:0,duration:.6,ease:'power3.out'})},[]);
  const add=ch=>{setName(n=>n.length>=14?n:n+(caps?ch.toUpperCase():ch));setCaps(false)};
  const back=()=>setName(n=>n.slice(0,-1));
- const done=()=>{if(name.trim().length>=2)onSave(name.trim())};
+ const taken=nickTaken(name);
+ const done=()=>{if(name.trim().length>=2&&!taken)onSave(name.trim())};
  useEffect(()=>{
   const k=e=>{
    if(e.key==='Enter'){e.preventDefault();done()}
@@ -30,8 +31,8 @@ export function NickPrompt({onSave,onCancel}){
  const rows=LAYOUTS[lang];
  return <div className="nick-wrap"><div className="nick" ref={ref}>
   <div className="nick-head"><h2>Ваш ник</h2>
-   <p>Под ним результат попадёт в таблицу рекордов стенда.</p></div>
-  <div className={'nick-field'+(name?'':' empty')}><span>{name||'ваш ник'}</span><i/></div>
+   <p className={taken?'nick-err':''} role="status">{taken?'Такой ник уже используется в топе. Выберите другой.':'Под ним результат попадёт в таблицу рекордов стенда.'}</p></div>
+  <div className={'nick-field'+(name?'':' empty')+(taken?' taken':'')}><span>{name||'ваш ник'}</span><i/></div>
   <div className="kb">
    {rows.map((r,ri)=><div key={ri} className="kb-row">{[...r].map(ch=><button key={ch} onClick={()=>add(ch)}>{caps?ch.toUpperCase():ch}</button>)}</div>)}
    <div className="kb-row">
@@ -42,7 +43,7 @@ export function NickPrompt({onSave,onCancel}){
     <button className="kb-w" onClick={back}>⌫</button>
    </div>
   </div>
-  <div className="nick-btns"><Btn className="primary" disabled={name.trim().length<2} onClick={done}>Начать смену</Btn><button className="ghost-btn" onClick={onCancel}>Назад</button></div>
+  <div className="nick-btns"><Btn className="primary" disabled={name.trim().length<2||taken} onClick={done}>Начать смену</Btn><button className="ghost-btn" onClick={onCancel}>Назад</button></div>
  </div></div>;
 }
 
