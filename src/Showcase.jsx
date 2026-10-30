@@ -49,7 +49,7 @@ export default function Showcase({results,onRestart,mine}){
 export function TopBoard({mine,limit=5,className='s-anim'}){
  const list=loadBoard(),top=list.slice(0,limit),myPlace=mine?list.findIndex(r=>r.at===mine)+1:0;
  return <div className={className+' top-board'}>
-  <div className="tb-head"><span>Топ стенда</span><small>по очкам · {list.length?`${list.length} в таблице`:'таблица пуста'}</small></div>
+  <div className="tb-head"><span>Топ стенда</span><small>по очкам · {list.length?`участников: ${list.length}`:'таблица пуста'}</small></div>
   {top.length?<ol>{top.map((r,i)=><li key={r.at} className={'tb-r p'+(i+1)+(r.at===mine?' me':'')}>
    <i>{i+1}</i><b>{r.name}</b><small>{fmtTime(r.secs)}</small><em>{r.score}</em></li>)}</ol>
   :<p>Пока пусто — пройдите смену и станьте первым.</p>}

@@ -12,11 +12,11 @@ import Hero3D,{hero} from './gl/Hero3D';
 import {webglOK,stagesWarm} from './gl/core';
 import {reduced,Btn,hintStat,Odo,holdGate,releaseGate,SoundToggle} from './ui';
 import {sfx,ambientMood} from './audio';
-import Showcase,{TopBoard} from './Showcase';
+import Showcase from './Showcase';
 import Demo,{demoOrder} from './Demo';
 import {accScore,speedScore,blitzScore,makeResult,fmtTime} from './scoring';
 import {loadBoard,placeOf,addRecord} from './records';
-import {NickPrompt,BoardAdmin,MiniBoard} from './RecordsUI';
+import {NickPrompt,BoardAdmin,MiniBoard,AttBoard} from './RecordsUI';
 import Perimeter from './levels/Perimeter';
 import Hardening from './levels/Hardening';
 import Traffic from './levels/Traffic';
@@ -84,7 +84,7 @@ function Attract({onStart,onDemo,diving,locked}){
    <Btn className="att-anim primary big" onClick={e=>{e.stopPropagation();onStart()}}>Начать смену</Btn>
    <p className="att-anim att-how">Пять уровней, около пяти минут. В финале — программы обучения с QR.</p>
   </div>
-  <TopBoard limit={3} className="att-anim att-board"/>
+  <AttBoard/>
   <SoundToggle className="att-sound"/>
   <button className="demo-open" onClick={e=>{e.stopPropagation();onDemo()}}>Демо-режим</button>
   <div className="att-ticker" aria-hidden="true"><div className="tk-track">{[0,1].map(k=><div key={k} className="tk-set">{items.map((t,i)=><span key={i}>{t}</span>)}</div>)}</div></div>
@@ -145,7 +145,7 @@ function Curtain({level,lv=0,hold,onCovered,onLift,onDone}){
 function Debrief({level,mistakes,hints=0,secs=0,onAnswer,onNext,last}){
  const b=useMemo(()=>{const pool=blitz[level.id];return pool[Math.floor(Math.random()*pool.length)]},[level.id]);
  const [ans,setAns]=useState(null),[bs,setBs]=useState(0),ref=useRef(),t0=useRef(Date.now());
- const acc=accScore(mistakes,hints),spd=speedScore(level.id,secs),bl=ans==null?0:blitzScore(ans===b.ok,bs);
+ const acc=accScore(mistakes,hints),spd=speedScore(level.id,secs,acc),bl=ans==null?0:blitzScore(ans===b.ok,bs);
  useLayoutEffect(()=>{if(!reduced())gsap.from(ref.current.querySelectorAll('.d-anim'),{y:26,opacity:0,duration:.6,stagger:.06,ease:'power3.out'})},[]);
  useEffect(()=>{if(ans!=null&&!reduced())gsap.from(ref.current.querySelectorAll('.d-late'),{y:20,opacity:0,duration:.5,stagger:.05,ease:'power3.out'})},[ans]);
  const choose=i=>{if(ans!=null)return;const sec=(Date.now()-t0.current)/1000;setBs(sec);setAns(i);onAnswer(i===b.ok,sec);
@@ -156,13 +156,13 @@ function Debrief({level,mistakes,hints=0,secs=0,onAnswer,onNext,last}){
  return <div className="debrief-wrap"><div className="debrief" ref={ref}><i className="d-sweep" aria-hidden="true"/>
   <div className="d-anim d-head"><svg className="d-check" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22"/><path d="M14.5 24.5l6.5 6.5 12.5-13"/></svg>
    <div><small>Уровень {level.code} пройден за {fmtTime(secs)}</small><b>{level.name}</b></div>
-   <div className="d-pts"><Num value={acc+spd+bl} prefix="+" delay={.35} dur={1.1}/><small>из 200 возможных</small></div></div>
+   <div className="d-pts"><Num value={acc+spd+bl} prefix="+" delay={.35} dur={1.1}/><small>за уровень</small></div></div>
   <div className="d-anim d-brk">
    <div><small>Точность</small><Num value={acc} prefix="+" delay={.45}/><em>{mistakes?`ошибок: ${mistakes}`:'без ошибок'}{hints?` · подсказок: ${hints}`:''}</em></div>
-   <div><small>Скорость</small><Num value={spd} prefix="+" delay={.6}/><em>{spd>=45?'очень быстро':spd>=25?'неплохо':'можно быстрее'}</em></div>
+   <div><small>Скорость</small><Num value={spd} prefix="+" delay={.6}/><em>{spd>=150?'суперскорость':spd>=50?'очень быстро':spd>=25?'неплохо':'можно быстрее'}</em></div>
    <div className={ans==null?'wait':''}><small>Блиц</small>{ans==null?<b>?</b>:<Num value={bl} prefix="+"/>}<em>{ans==null?'ответьте ниже':ans===b.ok?`ответ за ${Math.round(bs)} с`:'неверно'}</em></div>
   </div>
-  <div className="d-anim blitz"><div className="blitz-tag">Блиц · до +50 · чем быстрее, тем больше</div><h2>{b.q}</h2>
+  <div className="d-anim blitz"><div className="blitz-tag">Блиц · чем быстрее, тем больше очков</div><h2>{b.q}</h2>
    <div className="answers">{b.a.map((a,i)=><button key={i} onClick={()=>choose(i)} disabled={ans!=null} className={ans==null?'':i===b.ok?'right':i===ans?'wrong':'dim'}><span>{String.fromCharCode(65+i)}</span>{a}</button>)}</div>
    {ans!=null&&<p className={'why d-late '+(ans===b.ok?'ok':'no')}>{ans===b.ok?'Верно. ':'Не совсем. '}{b.why}</p>}
   </div>
@@ -172,7 +172,7 @@ function Debrief({level,mistakes,hints=0,secs=0,onAnswer,onNext,last}){
 
 function Results({results,onNext,onRestart,nick,onSaved}){
  const total=results.reduce((s,r)=>s+r.total,0),playSecs=results.reduce((s,r)=>s+r.secs+r.blitzSecs,0),speedSum=results.reduce((s,r)=>s+r.speed,0);
- const ref=useRef(),num=useRef();
+ const ref=useRef(),num=useRef(),barMax=Math.max(200,...results.map(r=>r.total));
  // результат пишется в таблицу сразу под ником, указанным перед сменой
  const [{place,mine}]=useState(()=>{const place=nick?placeOf(total,playSecs):null;return{place,mine:place?addRecord(nick,total,playSecs).at:null}});
  useEffect(()=>{
@@ -187,12 +187,12 @@ function Results({results,onNext,onRestart,nick,onSaved}){
   <section className="r-left">
    <span className="f-anim kicker">Смена закончена · время прохождения {fmtTime(playSecs)}</span>
    <h1 className="f-anim">Атака<br/><em>остановлена.</em></h1>
-   <div className="f-anim score"><Odo value={total} delay={.55} dur={1.9}/><span>/ 1000</span><em className="rank-stamp">{rankFor(total)}</em></div>
-   <div className="f-anim r-meta"><span>бонус скорости <b>+{speedSum}</b></span>{mine&&<span>{nick} · место на стенде <b>{place}</b></span>}{nick&&!mine&&<span>{nick} · вне топ-10</span>}</div>
+   <div className="f-anim score"><Odo value={total} delay={.55} dur={1.9}/><em className="rank-stamp">{rankFor(total)}</em></div>
+   <div className="f-anim r-meta"><span>бонус скорости <b>+{speedSum}</b></span>{mine&&<span>{nick} · место на стенде <b>{place}</b></span>}</div>
    <div className="f-anim r-btns"><Btn className="primary big" onClick={onNext}>К программам обучения</Btn><button className="ghost-btn" onClick={onRestart}>Пройти заново</button></div>
   </section>
   <section className="r-right">
-   <ol className="r-levels">{levels.map((l,i)=>{const r=results[i]||{total:0};return <li key={l.id} className="f-anim"><span className="n">{l.name}</span><span className="f-bar"><i style={{transform:`scaleX(${r.total/200})`}}/></span><b>{r.total}</b></li>})}</ol>
+   <ol className="r-levels">{levels.map((l,i)=>{const r=results[i]||{total:0};return <li key={l.id} className="f-anim"><span className="n">{l.name}</span><span className="f-bar"><i style={{transform:`scaleX(${r.total/barMax})`}}/></span><b>{r.total}</b></li>})}</ol>
    <div className="f-anim"><MiniBoard mine={mine}/></div>
   </section>
  </main>;
@@ -321,7 +321,7 @@ function App(){
   return()=>{['pointerdown','keydown'].forEach(e=>removeEventListener(e,touch));clearInterval(t)};
  },[]);
 
- const win=m=>setPending({mistakes:m,hints:hintStat.n,secs:Math.round((Date.now()-lvT0.current)/1000),blitz:null,blitzSecs:0});
+ const win=m=>setPending({mistakes:m,hints:hintStat.n,secs:(Date.now()-lvT0.current)/1000,blitz:null,blitzSecs:0});
  const answer=(ok,sec)=>setPending(p=>({...p,blitz:ok,blitzSecs:sec}));
  // пока игрок читает разбор, следующий уровень монтируется скрытно — пролёт потом не дёргается
  const preloading=GLW&&screen==='play'&&!!pending&&li<levels.length-1;
@@ -361,7 +361,7 @@ function App(){
 
  const L=levels[li],View=views[L.id];
  keyRef.current=screen==='play'?runId+'-'+li:'';
- const shown=score+(pending?accScore(pending.mistakes,pending.hints)+speedScore(L.id,pending.secs)+(pending.blitz==null?0:blitzScore(pending.blitz,pending.blitzSecs)):0);
+ const shown=score+(pending?accScore(pending.mistakes,pending.hints)+speedScore(L.id,pending.secs,accScore(pending.mistakes,pending.hints))+(pending.blitz==null?0:blitzScore(pending.blitz,pending.blitzSecs)):0);
  const hosts=preloading?[li,li+1]:[li];
  return <div className="viewport"><div className={'stage'+(webglOK()?'':' nogl')+(GLW?' world':'')} style={{transform:`translate(-50%,-50%) scale(${k})`}}>
   {webglOK()&&<NetStage quality={Q}/>}

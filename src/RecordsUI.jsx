@@ -3,6 +3,7 @@ import {gsap} from 'gsap';
 import {Btn,reduced} from './ui';
 import {fmtTime} from './scoring';
 import {loadBoard,removeRecord,clearBoard} from './records';
+import {VList} from './VList';
 
 const LAYOUTS={
  ru:['1234567890','йцукенгшщзхъ','фывапролджэ','ячсмитьбю'],
@@ -54,6 +55,19 @@ export function BoardAdmin({onClose}){
   {list.length?<ol className="adm-list">{list.map((r,i)=><li key={r.at}><span>{i+1}</span><b>{r.name}</b><em>{r.score}</em><small>{fmtTime(r.secs)}</small><button onClick={()=>del(r.at)}>удалить</button></li>)}</ol>:<p className="adm-empty">Пока пусто</p>}
   <div className="nick-btns"><button className="ghost-btn" onClick={()=>{if(confirm('Очистить всю таблицу рекордов?')){clearBoard();setList([])}}}>Очистить всё</button><Btn className="primary" onClick={onClose}>Закрыть</Btn></div>
  </div></div>;
+}
+
+// Топ на заставке: пять строк, прокрутка по всем участникам; по нажатию растёт на высоту экрана
+const AB_ROW=36,AB_OPEN=20;
+export function AttBoard(){
+ const list=loadBoard(),n=list.length,[open,setOpen]=useState(false),box=useRef();
+ useEffect(()=>{if(!open&&box.current)box.current.scrollTop=0},[open]);
+ return <div className={'att-anim att-board top-board'+(open?' open':'')}>
+  <div className="tb-head"><span>Топ стенда</span>{n>0&&<small>участников: {n}</small>}</div>
+  {n?<VList listRef={box} className="ab-list" style={{height:Math.min(n,open?AB_OPEN:5)*AB_ROW}} items={list} rowH={AB_ROW} span={AB_OPEN} render={(r,i)=><div className={'tb-r p'+(i+1)}><i>{i+1}</i><b>{r.name}</b><em>{r.score}</em></div>}/>
+  :<p>Пока пусто — станьте первым.</p>}
+  {n>0&&<div className="ab-foot"><button onClick={()=>setOpen(o=>!o)}>{open?'Свернуть':'Весь список'}</button>{open&&<a href="./top.html">Таблица и выгрузка</a>}</div>}
+ </div>;
 }
 
 export function MiniBoard({mine}){

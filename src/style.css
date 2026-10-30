@@ -1064,10 +1064,15 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .demo-open{font:500 14px var(--sans);letter-spacing:0;border:1px solid var(--edge2);border-radius:999px;height:40px;padding:0 18px;background:#111214;color:var(--mute)}
 .demo-tab{font:500 13px var(--sans);letter-spacing:0;text-transform:none;border:1px solid var(--edge2)}
 
-/* v18.1: топ стенда на заставке */
-.att-board{position:absolute;right:48px;top:48px;width:340px;padding:14px 18px 8px;z-index:5}
+/* v18.2: топ стенда на заставке — пять строк, весь список прокруткой */
+.att-board{position:absolute;right:48px;top:48px;width:340px;padding:14px 18px 6px;z-index:5}
 .att-board .tb-head{margin-bottom:6px}.att-board .tb-head span{font-size:19px}
-.att-board .tb-r{grid-template-columns:28px 1fr auto;padding:6px 0;font-size:16.5px}
+.ab-list{overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;transition:height .35s var(--ease-out);margin-right:-10px;padding-right:10px}
+.att-board .tb-r{grid-template-columns:30px 1fr auto;height:36px;padding:0;font-size:16.5px}
 .att-board .tb-r i{width:24px;height:24px;font-size:12px}
-.att-board .tb-r small{display:none}.att-board .tb-r em{font-size:19px}
+.att-board .tb-r b{min-width:0}
+.att-board .tb-r em{font-size:19px}
+.ab-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line)}
+.ab-foot button,.ab-foot a{padding:10px 0;font-size:14px;color:var(--mute);transition:color .2s}
+.ab-foot button:hover,.ab-foot a:hover{color:var(--ink)}
 .attract.diving .att-board{opacity:0;transition:opacity .4s}

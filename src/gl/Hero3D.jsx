@@ -10,7 +10,7 @@ export default function Hero3D({quality=1,diving=false}){
   const api=createHero(host.current,{quality});hero.api=api;
   
   const ptrs=new Map();let pinch=0,last=null,drag=false;
-  const blocked=t=>t&&t.closest&&t.closest('button,a,.att-copy,.demo,.demo-open');
+  const blocked=t=>t&&t.closest&&t.closest('button,a,.att-copy,.demo,.demo-open,.att-board');
   const mv=e=>{
    const r=host.current.getBoundingClientRect();api.setPointer(((e.clientX-r.left)/r.width-.5)*2,((e.clientY-r.top)/r.height-.5)*2);
    if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
@@ -30,7 +30,7 @@ export default function Hero3D({quality=1,diving=false}){
   const loop=()=>{
    for(const L of api.labels){const el=lab.current[L.id];if(!el)continue;
     const vis=L.show?Math.max(0,Math.min(1,(L.facing-.18)*4)):0;
-    el.style.opacity=api.diving?0:vis;const fl=L.x>1420;el.style.transform=`translate(${L.x}px,${L.y}px)`+(fl?' translateX(-100%)':'');el.classList.toggle('flip',fl)}
+    el.style.opacity=api.diving||(L.x>1500&&L.y<350)?0:vis;const fl=L.x>(L.y<350?1200:1420);el.style.transform=`translate(${L.x}px,${L.y}px)`+(fl?' translateX(-100%)':'');el.classList.toggle('flip',fl)}
    if(lockRef.current&&api.diving){const t=api.targetScreen();lockRef.current.style.transform=`translate(${t.x}px,${t.y}px)`}
    raf=requestAnimationFrame(loop);
   };
