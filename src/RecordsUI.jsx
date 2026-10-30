@@ -10,8 +10,8 @@ const LAYOUTS={
 };
 const OK=/^[\p{L}\p{N} _.\-]$/u;
 
-// Окно «оставьте ник»: экранная клавиатура для тача + обычный ввод с клавиатуры
-export function NickPrompt({place,score,secs,onSave,onSkip}){
+// Ник перед началом смены: экранная клавиатура для тача + обычный ввод с клавиатуры
+export function NickPrompt({onSave,onCancel}){
  const [name,setName]=useState(''),[lang,setLang]=useState('ru'),[caps,setCaps]=useState(true),ref=useRef();
  useEffect(()=>{if(!reduced())gsap.from(ref.current,{y:50,opacity:0,duration:.6,ease:'power3.out'})},[]);
  const add=ch=>{setName(n=>n.length>=14?n:n+(caps?ch.toUpperCase():ch));setCaps(false)};
@@ -20,7 +20,7 @@ export function NickPrompt({place,score,secs,onSave,onSkip}){
  useEffect(()=>{
   const k=e=>{
    if(e.key==='Enter'){e.preventDefault();done()}
-   else if(e.key==='Escape')onSkip();
+   else if(e.key==='Escape')onCancel();
    else if(e.key==='Backspace'){e.preventDefault();back()}
    else if(e.key.length===1&&OK.test(e.key)&&!e.ctrlKey&&!e.metaKey){e.preventDefault();setName(n=>n.length>=14?n:n+e.key)}
   };
@@ -28,9 +28,8 @@ export function NickPrompt({place,score,secs,onSave,onSkip}){
  });
  const rows=LAYOUTS[lang];
  return <div className="nick-wrap"><div className="nick" ref={ref}>
-  <div className="nick-head"><span className="kicker">Таблица рекордов стенда</span>
-   <h2>{place===1?'Новый рекорд стенда!':`Вы на ${place}-м месте!`}</h2>
-   <p><b>{score}</b> очков за <b>{fmtTime(secs)}</b>. Оставьте ник — он поедет по бегущей строке на заставке.</p></div>
+  <div className="nick-head"><h2>Ваш ник</h2>
+   <p>Под ним результат попадёт в таблицу рекордов стенда.</p></div>
   <div className={'nick-field'+(name?'':' empty')}><span>{name||'ваш ник'}</span><i/></div>
   <div className="kb">
    {rows.map((r,ri)=><div key={ri} className="kb-row">{[...r].map(ch=><button key={ch} onClick={()=>add(ch)}>{caps?ch.toUpperCase():ch}</button>)}</div>)}
@@ -42,7 +41,7 @@ export function NickPrompt({place,score,secs,onSave,onSkip}){
     <button className="kb-w" onClick={back}>⌫</button>
    </div>
   </div>
-  <div className="nick-btns"><Btn className="primary" disabled={name.trim().length<2} onClick={done}>Сохранить в рекорды</Btn><button className="ghost-btn" onClick={onSkip}>Пропустить</button></div>
+  <div className="nick-btns"><Btn className="primary" disabled={name.trim().length<2} onClick={done}>Начать смену</Btn><button className="ghost-btn" onClick={onCancel}>Назад</button></div>
  </div></div>;
 }
 

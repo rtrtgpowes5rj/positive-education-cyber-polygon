@@ -45,14 +45,14 @@ export default function Showcase({results,onRestart,mine}){
  </main>;
 }
 
-// Топ стенда по очкам: лучшие 5 результатов из таблицы рекордов, свой результат подсвечен
-function TopBoard({mine}){
- const list=loadBoard(),top=list.slice(0,5),myPlace=mine?list.findIndex(r=>r.at===mine)+1:0;
- return <div className="s-anim top-board">
+// Топ стенда по очкам: лучшие результаты из таблицы рекордов, свой результат подсвечен
+export function TopBoard({mine,limit=5,className='s-anim'}){
+ const list=loadBoard(),top=list.slice(0,limit),myPlace=mine?list.findIndex(r=>r.at===mine)+1:0;
+ return <div className={className+' top-board'}>
   <div className="tb-head"><span>Топ стенда</span><small>по очкам · {list.length?`${list.length} в таблице`:'таблица пуста'}</small></div>
   {top.length?<ol>{top.map((r,i)=><li key={r.at} className={'tb-r p'+(i+1)+(r.at===mine?' me':'')}>
    <i>{i+1}</i><b>{r.name}</b><small>{fmtTime(r.secs)}</small><em>{r.score}</em></li>)}</ol>
   :<p>Пока пусто — пройдите смену и станьте первым.</p>}
-  {myPlace>5&&<div className="tb-r me tb-mine"><i>{myPlace}</i><b>{list[myPlace-1].name}</b><small>{fmtTime(list[myPlace-1].secs)}</small><em>{list[myPlace-1].score}</em></div>}
+  {myPlace>limit&&<div className="tb-r me tb-mine"><i>{myPlace}</i><b>{list[myPlace-1].name}</b><small>{fmtTime(list[myPlace-1].secs)}</small><em>{list[myPlace-1].score}</em></div>}
  </div>;
 }

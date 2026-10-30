@@ -1063,3 +1063,11 @@ html,body{overscroll-behavior:none;-webkit-user-select:none;user-select:none;-we
 input,textarea{-webkit-user-select:text;user-select:text}
 .demo-open{font:500 14px var(--sans);letter-spacing:0;border:1px solid var(--edge2);border-radius:999px;height:40px;padding:0 18px;background:#111214;color:var(--mute)}
 .demo-tab{font:500 13px var(--sans);letter-spacing:0;text-transform:none;border:1px solid var(--edge2)}
+
+/* v18.1: топ стенда на заставке */
+.att-board{position:absolute;right:48px;top:48px;width:340px;padding:14px 18px 8px;z-index:5}
+.att-board .tb-head{margin-bottom:6px}.att-board .tb-head span{font-size:19px}
+.att-board .tb-r{grid-template-columns:28px 1fr auto;padding:6px 0;font-size:16.5px}
+.att-board .tb-r i{width:24px;height:24px;font-size:12px}
+.att-board .tb-r small{display:none}.att-board .tb-r em{font-size:19px}
+.attract.diving .att-board{opacity:0;transition:opacity .4s}

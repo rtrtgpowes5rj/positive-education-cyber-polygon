@@ -12,7 +12,7 @@ import Hero3D,{hero} from './gl/Hero3D';
 import {webglOK,stagesWarm} from './gl/core';
 import {reduced,Btn,hintStat,Odo,holdGate,releaseGate,SoundToggle} from './ui';
 import {sfx,ambientMood} from './audio';
-import Showcase from './Showcase';
+import Showcase,{TopBoard} from './Showcase';
 import Demo,{demoOrder} from './Demo';
 import {accScore,speedScore,blitzScore,makeResult,fmtTime} from './scoring';
 import {loadBoard,placeOf,addRecord} from './records';
@@ -61,13 +61,13 @@ function Hud({level,score,seconds,onHome}){
 }
 
 
-function Attract({onStart,onDemo,diving}){
+function Attract({onStart,onDemo,diving,locked}){
  const ref=useRef();
  const rec=loadBoard().slice(0,3).map((r,i)=>`★ ${i+1}. ${r.name} — ${r.score} очков · ${fmtTime(r.secs)}`);
  const items=[...ticker.slice(0,3),...(rec.length?rec:['★ Таблица рекордов пуста — станьте первым']),...ticker.slice(3)];
  useEffect(()=>{if(!diving||reduced())return;const q=x=>ref.current.querySelectorAll(x);
   const tl=gsap.timeline();tl.to(q('.att-anim'),{opacity:0,x:-70,duration:.6,stagger:.05,ease:'power3.in'},0).to(q('.att-ticker,.demo-open,.att-grad'),{opacity:0,duration:.5},0);return()=>tl.kill()},[diving]);
- useEffect(()=>{const k=e=>{if((e.key==='Enter'||e.key===' ')&&!e.repeat&&document.activeElement===document.body){e.preventDefault();onStart()}};addEventListener('keydown',k);return()=>removeEventListener('keydown',k)},[onStart]);
+ useEffect(()=>{if(locked)return;const k=e=>{if((e.key==='Enter'||e.key===' ')&&!e.repeat&&document.activeElement===document.body){e.preventDefault();onStart()}};addEventListener('keydown',k);return()=>removeEventListener('keydown',k)},[onStart,locked]);
  useEffect(()=>{if(reduced())return;const q=s=>ref.current.querySelectorAll(s);
   const tl=gsap.timeline({delay:.15});
   tl.from(q('.att-anim'),{opacity:0,y:28,duration:.8,stagger:.1,ease:'power3.out'},0);
@@ -84,6 +84,7 @@ function Attract({onStart,onDemo,diving}){
    <Btn className="att-anim primary big" onClick={e=>{e.stopPropagation();onStart()}}>Начать смену</Btn>
    <p className="att-anim att-how">Пять уровней, около пяти минут. В финале — программы обучения с QR.</p>
   </div>
+  <TopBoard limit={3} className="att-anim att-board"/>
   <SoundToggle className="att-sound"/>
   <button className="demo-open" onClick={e=>{e.stopPropagation();onDemo()}}>Демо-режим</button>
   <div className="att-ticker" aria-hidden="true"><div className="tk-track">{[0,1].map(k=><div key={k} className="tk-set">{items.map((t,i)=><span key={i}>{t}</span>)}</div>)}</div></div>
@@ -169,32 +170,31 @@ function Debrief({level,mistakes,hints=0,secs=0,onAnswer,onNext,last}){
  </div></div>;
 }
 
-function Results({results,onNext,onRestart,record,onSaved}){
+function Results({results,onNext,onRestart,nick,onSaved}){
  const total=results.reduce((s,r)=>s+r.total,0),playSecs=results.reduce((s,r)=>s+r.secs+r.blitzSecs,0),speedSum=results.reduce((s,r)=>s+r.speed,0);
- const ref=useRef(),num=useRef(),place=useMemo(()=>record?placeOf(total,playSecs):null,[]);
- const [prompt,setPrompt]=useState(false),[mine,setMine]=useState(null),[askedOnce,setAsked]=useState(false),[bump,setBump]=useState(0);
+ const ref=useRef(),num=useRef();
+ // результат пишется в таблицу сразу под ником, указанным перед сменой
+ const [{place,mine}]=useState(()=>{const place=nick?placeOf(total,playSecs):null;return{place,mine:place?addRecord(nick,total,playSecs).at:null}});
  useEffect(()=>{
+  if(mine&&onSaved)onSaved(mine);
   if(!reduced()){
    gsap.from(ref.current.querySelectorAll('.f-anim'),{y:30,opacity:0,duration:.7,stagger:.07,ease:'power3.out'});
    gsap.from(ref.current.querySelectorAll('.f-bar i'),{scaleX:0,duration:1,stagger:.08,ease:'power3.out',delay:.6});
    gsap.fromTo(ref.current.querySelector('.rank-stamp'),{scale:1.9,opacity:0,rotate:-12,filter:'blur(6px)'},{scale:1,opacity:1,rotate:-3,filter:'blur(0px)',duration:.6,delay:2.2,ease:'expo.out'});
   }
-  if(place){const t=setTimeout(()=>{setPrompt(true);setAsked(true)},2800);return()=>clearTimeout(t)}
  },[]);
- const save=name=>{const r=addRecord(name,total,playSecs);setMine(r.at);onSaved&&onSaved(r.at);setPrompt(false);setBump(x=>x+1)};
  return <main className="results" ref={ref}>
   <section className="r-left">
    <span className="f-anim kicker">Смена закончена · время прохождения {fmtTime(playSecs)}</span>
    <h1 className="f-anim">Атака<br/><em>остановлена.</em></h1>
    <div className="f-anim score"><Odo value={total} delay={.55} dur={1.9}/><span>/ 1000</span><em className="rank-stamp">{rankFor(total)}</em></div>
-   <div className="f-anim r-meta"><span>бонус скорости <b>+{speedSum}</b></span>{place&&!mine&&<span>место на стенде <b>{place}</b></span>}{mine&&<span className="ok">записано в рекорды ✓</span>}</div>
-   <div className="f-anim r-btns"><Btn className="primary big" onClick={onNext}>К программам обучения</Btn>{place&&!mine&&askedOnce&&!prompt&&<button className="ghost-btn" onClick={()=>setPrompt(true)}>Оставить ник</button>}<button className="ghost-btn" onClick={onRestart}>Пройти заново</button></div>
+   <div className="f-anim r-meta"><span>бонус скорости <b>+{speedSum}</b></span>{mine&&<span>{nick} · место на стенде <b>{place}</b></span>}{nick&&!mine&&<span>{nick} · вне топ-10</span>}</div>
+   <div className="f-anim r-btns"><Btn className="primary big" onClick={onNext}>К программам обучения</Btn><button className="ghost-btn" onClick={onRestart}>Пройти заново</button></div>
   </section>
   <section className="r-right">
    <ol className="r-levels">{levels.map((l,i)=>{const r=results[i]||{total:0};return <li key={l.id} className="f-anim"><span className="n">{l.name}</span><span className="f-bar"><i style={{transform:`scaleX(${r.total/200})`}}/></span><b>{r.total}</b></li>})}</ol>
-   <div className="f-anim"><MiniBoard key={bump} mine={mine}/></div>
+   <div className="f-anim"><MiniBoard mine={mine}/></div>
   </section>
-  {prompt&&<NickPrompt place={place} score={total} secs={playSecs} onSave={save} onSkip={()=>setPrompt(false)}/>}
  </main>;
 }
 
@@ -261,7 +261,7 @@ function App(){
  const cid=useRef(0),snapRef=useRef(true);
  const [results,setResults]=useState([]),[pending,setPending]=useState(null),[t0,setT0]=useState(0),[seconds,setSeconds]=useState(0),[runId,setRunId]=useState(0);
  const [myRec,setMyRec]=useState(null),[demo,setDemo]=useState(false),[idleLeft,setIdleLeft]=useState(null),[diving,setDiving]=useState(false);
- const [trans,setTrans]=useState(null),[impact,setImpact]=useState(0),[tour,setTour]=useState(-1);
+ const [trans,setTrans]=useState(null),[impact,setImpact]=useState(0),[tour,setTour]=useState(-1),[nick,setNick]=useState(''),[askNick,setAskNick]=useState(false);
  const keyRef=useRef(''),lastTouch=useRef(Date.now()),demoRef=useRef(false),lvT0=useRef(Date.now()),[admin,setAdmin]=useState(false);demoRef.current=demo;
  useEffect(()=>{const k=e=>{if(e.ctrlKey&&e.shiftKey&&(e.key==='L'||e.key==='l'||e.key==='Д'||e.key==='д')){e.preventDefault();setAdmin(a=>!a)}};addEventListener('keydown',k);return()=>removeEventListener('keydown',k)},[]);
  // мир ↔ экран
@@ -274,12 +274,14 @@ function App(){
   if(screen==='results'||screen==='final')net.set({paused:false,station:'finale',phase:'work',snap:sn,slotsVisible:false});
  },[screen,li,trans,ready,tour]);
  // облёт: через 30 с без касаний на заставке; круг по пяти станциям, затем снова планета
- useEffect(()=>{if(screen!=='attract'||!GLW||demo){setTour(-1);return}
+ useEffect(()=>{if(screen!=='attract'||!GLW||demo||askNick){setTour(-1);return}
   let i=-1,t;const tick=()=>{const idle=Date.now()-lastTouch.current;
    if(i<0){if(idle>30000&&!diving){i=0;setTour(0)}}else{i++;if(i>=levels.length){i=-1;setTour(-1);lastTouch.current=Date.now()}else setTour(i)}
    t=setTimeout(tick,i<0?1000:TOUR_STEP)};t=setTimeout(tick,1000);
   const stop=()=>{if(i>=0){i=-1;setTour(-1)}};addEventListener('pointerdown',stop,true);
-  return()=>{clearTimeout(t);removeEventListener('pointerdown',stop,true)}},[screen,demo,diving]);
+  return()=>{clearTimeout(t);removeEventListener('pointerdown',stop,true)}},[screen,demo,diving,askNick]);
+ // ввод ника брошен: минута без касаний — обратно на заставку
+ useEffect(()=>{if(!askNick)return;const t=setInterval(()=>{if(Date.now()-lastTouch.current>60000)setAskNick(false)},1000);return()=>clearInterval(t)},[askNick]);
  useEffect(()=>{const a=hero.api;if(a)a.ctx.paused=tour>=0},[tour]);
  useEffect(()=>{loadQuestions()},[]);
  useEffect(()=>{const t=e=>{if(e.target.closest&&e.target.closest('button:not(:disabled)'))sfx.tap()};addEventListener('pointerdown',t,true);return()=>removeEventListener('pointerdown',t,true)},[]);
@@ -289,7 +291,7 @@ function App(){
   if(h[1]==='results'||h[1]==='final'){setResults(fakeResults());setSeconds(287);setScreen(h[1]==='final'?'final':'results');return}
   hintStat.n=0;lvT0.current=Date.now();setLi(+h[2]-1);setT0(Date.now());setScreen('play')},[]);
  const score=results.reduce((s,r)=>s+r.total,0);
- useEffect(()=>{if(screen==='attract'){setTrans(null);releaseGate();const a=net.get().api;a&&a.resetFinale&&a.resetFinale()}},[screen]);
+ useEffect(()=>{if(screen==='attract'){setNick('');setTrans(null);releaseGate();const a=net.get().api;a&&a.resetFinale&&a.resetFinale()}},[screen]);
 
  // занавес (запасной путь без 3D): kind 'level' — с заставкой уровня lv, иначе короткая шторка
  const cut=(lv,covered,{lifted}={})=>setCurtain({id:++cid.current,lv,covered,lifted});
@@ -352,6 +354,8 @@ function App(){
  // нырок в планету → монтажная склейка «удар» → кран над сетью компании
  const beginDive=()=>{if(diving||curtain||trans)return;if(!webglOK()||!hero.api||reduced()){start();return}
   setDiving(true);hero.api.dive({coverAt:GLW?.9:.58,onCover:()=>{if(GLW){setImpact(x=>x+1);sfx.place()}start()}})};
+ const askStart=()=>{if(!diving&&!curtain&&!trans)setAskNick(true)};
+ const nickDone=name=>{setNick(name);setAskNick(false);beginDive()};
  const startDemo=()=>{setDemo(true);go('l0')};
  const exitDemo=()=>{setDemo(false);setResults([]);setPending(null);setScreen('attract')};
 
@@ -362,7 +366,8 @@ function App(){
  return <div className="viewport"><div className={'stage'+(webglOK()?'':' nogl')+(GLW?' world':'')} style={{transform:`translate(-50%,-50%) scale(${k})`}}>
   {webglOK()&&<NetStage quality={Q}/>}
   {screen==='attract'&&webglOK()&&<div className={'hero-wrap'+(tour>=0?' away':'')}><Hero3D diving={diving} quality={Q}/></div>}
-  {screen==='attract'&&<div className={'attract-wrap'+(tour>=0?' away':'')}><Attract onStart={beginDive} onDemo={startDemo} diving={diving}/></div>}
+  {screen==='attract'&&<div className={'attract-wrap'+(tour>=0?' away':'')}><Attract onStart={askStart} onDemo={startDemo} diving={diving} locked={askNick}/></div>}
+  {screen==='attract'&&askNick&&<NickPrompt onSave={nickDone} onCancel={()=>setAskNick(false)}/>}
   {screen==='attract'&&tour>=0&&<TourCaption i={tour}/>}
   {screen==='play'&&<>
    <div className={'hud-wrap'+(trans?' muted':'')}><Hud level={li} score={shown} seconds={trans&&trans.lv===0?0:seconds} onHome={home}/></div>
@@ -372,7 +377,7 @@ function App(){
    {pending&&<Debrief key={'d'+li+runId} level={L} mistakes={pending.mistakes} hints={pending.hints} secs={pending.secs} onAnswer={answer} onNext={next} last={li===levels.length-1}/>}
    {trans&&<FlightTitle key={trans.id} level={levels[trans.lv]} lv={trans.lv} onDone={flightDone}/>}
   </>}
-  {screen==='results'&&<><Hud level={levels.length} score={score} seconds={seconds} onHome={home}/><Results results={results} record={!demo} onSaved={setMyRec} onNext={()=>GLW?setScreen('final'):cut(null,()=>setScreen('final'))} onRestart={start}/></>}
+  {screen==='results'&&<><Hud level={levels.length} score={score} seconds={seconds} onHome={home}/><Results results={results} nick={demo?'':nick} onSaved={setMyRec} onNext={()=>GLW?setScreen('final'):cut(null,()=>setScreen('final'))} onRestart={start}/></>}
   {screen==='final'&&<><Hud level={levels.length} score={score} seconds={seconds} onHome={home}/><Showcase results={results} mine={myRec} onRestart={start}/></>}
   {(screen==='results'||screen==='final')&&!webglOK()&&null}
   {impact>0&&<i key={impact} className="impact" aria-hidden="true"/>}
