@@ -1,5 +1,5 @@
 import React,{useMemo,useRef,useState} from 'react';
-import {Briefing,useThread,Win,Btn} from '../ui';
+import {Briefing,useThread,Win,Btn,TapHint} from '../ui';
 
 let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
 const gen={
@@ -32,10 +32,12 @@ function Strip({id,on}){
 const hex=s=>{const b=[...new TextEncoder().encode(s)].slice(0,16);return{h:b.map(x=>x.toString(16).padStart(2,'0')).join(' '),a:b.map(x=>x>31&&x<127?String.fromCharCode(x):'·').join('')}};
 
 export default function Traffic({level,onWin}){
- const [sel,setSel]=useState('update'),[marked,setMarked]=useState({}),[result,setResult]=useState(null),[mistakes,setMistakes]=useState(0),[won,setWon]=useState(false);
+ const [seen,setSeen]=useState({update:true}),[sel,setSel]=useState('update'),[marked,setMarked]=useState({}),[result,setResult]=useState(null),[mistakes,setMistakes]=useState(0),[won,setWon]=useState(false);
  const th=useThread(level);
  const f=flows.find(x=>x.id===sel),n=Object.values(marked).filter(Boolean).length;
  const mark=id=>{if(won)return;setResult(null);setMarked(m=>({...m,[id]:!m[id]}))};
+ const open=id=>{setSel(id);setSeen(s=>({...s,[id]:true}))};
+ const nSeen=Object.keys(seen).length;
  const check=()=>{
   const wrong=flows.filter(x=>marked[x.id]&&!x.sus),miss=flows.filter(x=>x.sus&&!marked[x.id]);
   const r={};flows.forEach(x=>{if(marked[x.id])r[x.id]=x.sus?'ok':'fp';else if(x.sus)r[x.id]='miss'});setResult(r);
@@ -48,9 +50,9 @@ export default function Traffic({level,onWin}){
   <Briefing level={level} thread={th} done={doneGoals}/>
   <div className="work">
    <Win className="nad" title="PT NAD · сессии" sub="Последние 10 минут" right={<span className="chip">{n} помечено</span>}>
-    <div className="axis"><span>−10:00</span><span>−07:30</span><span>−05:00</span><span>−02:30</span><span>сейчас</span></div>
+    <div className="axis"><TapHint>{nSeen<flows.length?`Нажимайте на строки по очереди: ${nSeen} из ${flows.length}`:'Все сессии открыты: пометьте подозрительные'}</TapHint><span>−10:00</span><span>−07:30</span><span>−05:00</span><span>−02:30</span><span>сейчас</span></div>
     <div className="flow-list"><div className="playhead"/>
-     {flows.map(x=><button key={x.id} className={'flow'+(sel===x.id?' sel':'')+(marked[x.id]?' marked':'')+(result?.[x.id]?' r-'+result[x.id]:'')} onClick={()=>setSel(x.id)}>
+     {flows.map((x,i)=><button key={x.id} style={{'--i':i}} className={'flow'+(seen[x.id]?'':' unseen')+(sel===x.id?' sel':'')+(marked[x.id]?' marked':'')+(result?.[x.id]?' r-'+result[x.id]:'')} onClick={()=>open(x.id)}>
       <span className="who"><b>{x.host}</b><small>{x.src} → {x.dst}</small></span>
       <span className="proto">{x.proto}</span>
       <Strip id={x.id} on={sel===x.id}/>

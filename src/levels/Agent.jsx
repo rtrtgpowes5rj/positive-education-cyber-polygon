@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {gsap} from 'gsap';
-import {Briefing,useThread,Win,Btn,Code,reduced} from '../ui';
+import {Briefing,useThread,Win,Btn,Code,reduced,TapHint} from '../ui';
 import Panel3D from '../gl/Panel3D';
 import {webglOK} from '../gl/core';
 
@@ -61,14 +61,15 @@ export default function Agent({level,onWin}){
   tl.to({},{duration:.5});
  };
 
+ const nMarked=Object.values(marked).filter(Boolean).length;let seq=0;
  const goals=[badKeys.every(k=>marked[k])&&!flat.some(l=>marked[l.key]&&!l.bad),perms.every(p=>p.need?grant[p.id]:!grant[p.id]),won];
  return <main className="level agent">
   <Briefing level={level} thread={th} done={goals}/>
   <div className="work agent-work">
    <Win className="pr" title="Pull request #418" sub="agent/fix-report-export → main" right={<span className="diffstat"><b>+11</b> <i>−2</i></span>}>
     <div className="pr-meta"><span className="bot">AI</span><div><b>coding-agent</b> <small>открыл запрос</small><p>«Исправил экспорт отчётов в PDF, добавил установку зависимостей и телеметрию»</p></div></div>
-    <div className="pr-files">{diff.map(f=><div className="dfile" key={f.file}><div className="dfile-head">{f.file}</div>
-     {f.lines.map(l=>{const k=f.file+':'+l.n;return <button key={k} className={'dl'+(l.ctx?' ctx':'')+(marked[k]?' rej':'')} onClick={()=>toggleLine({...l,key:k})} disabled={l.ctx}>
+    <div className={'pr-files'+(nMarked?'':' nudge')}>{diff.map((f,fi)=><div className="dfile" key={f.file}><div className="dfile-head">{f.file}{fi===0&&<TapHint>{nMarked?`Отклонено строк: ${nMarked}`:'Нажимайте на опасные строки'}</TapHint>}</div>
+     {f.lines.map(l=>{const k=f.file+':'+l.n;return <button key={k} className={'dl'+(l.ctx?' ctx':'')+(marked[k]?' rej':'')} style={{'--i':l.ctx?0:seq++}} onClick={()=>toggleLine({...l,key:k})} disabled={l.ctx}>
       <span className="ln">{l.n}</span><span className="sign">{l.ctx?' ':'+'}</span><Code>{l.t}</Code><em>{marked[k]?'ОТКЛОНЕНО':''}</em></button>})}
     </div>)}</div>
     <div className="gate">

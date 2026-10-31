@@ -1,5 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {Briefing,useThread,Win,Btn,stagePt} from '../ui';
+import {Briefing,useThread,Win,Btn,stagePt,TapHint} from '../ui';
 
 const events=[
  {id:'n1',time:'08:58:12',src:'WS-087',code:'4624',type:'Security',text:'a.ivanova — интерактивный вход (тип 2)'},
@@ -81,9 +81,9 @@ export default function Soc({level,onWin}){
   <div className="work">
    <Win className="siem" title="MaxPatrol SIEM · инцидент" sub="События за последние 40 минут" right={<span className="chip">{used.size} / 4 в цепочке</span>}>
     <div className="siem-grid">
-     <div className="feed">
-      <div className="feed-h"><span>Время</span><span>Событие</span><span>Хост</span></div>
-      {events.map(e=><button key={e.id} className={'ev'+(pick===e.id?' pick':'')+(used.has(e.id)?' used':'')} disabled={phase!=='build'}
+     <div className={'feed'+(!used.size&&!pick&&phase==='build'?' nudge':'')}>
+      <div className="feed-h"><span>Время</span><span>Событие</span><span>Хост</span>{phase==='build'&&<TapHint>Нажмите на событие, затем на этап</TapHint>}</div>
+      {events.map((e,i)=><button key={e.id} style={{'--i':i}} className={'ev'+(pick===e.id?' pick':'')+(used.has(e.id)?' used':'')} disabled={phase!=='build'}
         onPointerDown={ev=>{drag.current={id:e.id,x:ev.clientX,y:ev.clientY,moving:false}}}
         onClick={()=>{setPick(pick===e.id?null:e.id);if(pick!==e.id)th.say('Теперь выбери этап цепочки справа.')}}>
        <span className="t">{e.time}</span><span className={'code '+e.type.toLowerCase()}>{e.code}</span><span className="src">{e.src}</span><span className="txt">{e.text}</span>

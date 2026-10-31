@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import Panel3D from '../gl/Panel3D';
-import {Briefing,useThread,Win,Btn,Code} from '../ui';
+import {Briefing,useThread,Win,Btn,Code,TapHint} from '../ui';
 
 // risk — опасная строка (надо исправить), keep — нужна сервису (трогать нельзя)
 const files=[
@@ -64,14 +64,15 @@ export default function Hardening({level,onWin}){
  const surface=report?risks.filter(l=>report[l.id]==='missed').length:null;
  const ok=report&&!risks.some(l=>report[l.id]==='missed')&&!all.some(l=>report[l.id]==='broken');
  const goals=[report?!risks.some(l=>report[l.id]==='missed'):false,report?!fixed.listen:false,report?!fixed.log:false];
+ let seq=0;
  return <main className="level hardening">
   <Briefing level={level} thread={th} done={goals}/>
   <div className="work">
-   <Win className="editor" title="harden · 3 файла" sub="Нажмите на строку, чтобы заменить её" right={<span className="chip">{changed} изм.</span>}>
+   <Win className="editor" title="harden · 3 файла" sub={<TapHint>Нажмите на строку, чтобы заменить её</TapHint>} right={<span className="chip">{changed} изм.</span>}>
     <div className="split"><div className="split-main">
-    <div className="files">{files.map(f=><div className="file" key={f.path}>
+    <div className={'files'+(changed||report?'':' nudge')}>{files.map(f=><div className="file" key={f.path}>
      <div className="file-head"><b>{f.path}</b><span>{f.host}</span></div>
-     {f.lines.map((l,i)=>l.id?<button key={l.id} onMouseEnter={()=>setHot(l.id)} onMouseLeave={()=>setHot(null)} className={'cfg '+(fixed[l.id]?'on ':'')+(hot===l.id?'hot ':'')+(report?.[l.id]||'')} onClick={()=>toggle(l)} aria-pressed={!!fixed[l.id]}>
+     {f.lines.map((l,i)=>l.id?<button key={l.id} onMouseEnter={()=>setHot(l.id)} onMouseLeave={()=>setHot(null)} className={'cfg '+(fixed[l.id]?'on ':'')+(hot===l.id?'hot ':'')+(report?.[l.id]||'')} style={{'--i':seq++}} onClick={()=>toggle(l)} aria-pressed={!!fixed[l.id]}>
        <span className="ln">{i+1}</span>
        <span className="code-cell">{fixed[l.id]?<><span className="del"><Code>{l.from.trim()}</Code></span><span className="arrow">→</span><span className="add"><Code>{l.to.trim()}</Code></span></>:<Code>{l.from}</Code>}</span>
        <span className="flag">{report?.[l.id]==='missed'?'УЯЗВИМО':report?.[l.id]==='broken'?'СЛОМАН СЕРВИС':report?.[l.id]==='ok'?'ИСПРАВЛЕНО':fixed[l.id]?'ИЗМЕНЕНО':''}</span>

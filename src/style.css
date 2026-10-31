@@ -1082,3 +1082,14 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .nick-field.taken{border-color:var(--red)}.nick-field.taken i{background:var(--red)}
 .demo-bar .demo-top{margin-left:10px}
 .attract p.att-how{max-width:none;white-space:nowrap}
+
+/* v18.4: по этим строкам надо нажимать — волна сверху вниз, пока игрок не начал */
+.tap-hint{display:inline-flex;align-items:center;gap:8px;font:500 14px var(--sans);letter-spacing:0;color:var(--amber);white-space:nowrap}
+.tap-hint i{flex:none;width:7px;height:7px;border-radius:50%;background:var(--amber);animation:ctaDot 1.6s ease-in-out infinite}
+.dfile-head{display:flex;align-items:center;justify-content:space-between}
+.axis{position:relative}
+.traffic .axis .tap-hint{position:absolute;left:24px;top:7px}
+.ev{position:relative}
+.pr-files.nudge .dl:not(.ctx)::after,.files.nudge button.cfg::after,.feed.nudge .ev::after,.flow.unseen::after{content:"";position:absolute;inset:0;pointer-events:none;background:#f2c5661c;box-shadow:inset 3px 0 0 var(--amber);opacity:0;animation:rowWave 5s ease-out infinite;animation-delay:calc(.8s + var(--i,0)*.2s)}
+@keyframes rowWave{0%,18%,100%{opacity:0}6%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.pr-files.nudge .dl:not(.ctx)::after,.files.nudge button.cfg::after,.feed.nudge .ev::after,.flow.unseen::after{animation:none;opacity:.5}.tap-hint i{animation:none}}

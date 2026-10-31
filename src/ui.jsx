@@ -213,3 +213,6 @@ export function Code({children}){
   return t.split(kw).map((u,j)=>kw.test(u)?<span key={i+'_'+j} className="tk-k">{u}</span>:u);
  })}</code>;
 }
+
+// Подсказка у списка, по строкам которого надо нажимать
+export const TapHint=({children})=><span className="tap-hint"><i aria-hidden="true"/>{children}</span>;

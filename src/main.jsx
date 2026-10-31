@@ -11,7 +11,7 @@ import NetStage,{net} from './gl/NetStage';
 import Hero3D,{hero} from './gl/Hero3D';
 import {webglOK,stagesWarm} from './gl/core';
 import {reduced,Btn,hintStat,Odo,holdGate,releaseGate,SoundToggle} from './ui';
-import {sfx,ambientMood} from './audio';
+import {sfx} from './audio';
 import Showcase from './Showcase';
 import Demo,{demoOrder} from './Demo';
 import {accScore,speedScore,blitzScore,makeResult,fmtTime} from './scoring';
@@ -330,9 +330,9 @@ function App(){
   if(li===levels.length-1){
    if(!GLW){cut(null,()=>{setPending(null);setScreen('results')});return}
    // пик: камера уходит вверх, купол защиты закрывает всю сеть, угрозы гаснут
-   setPending(null);setScreen('peak');sfx.peak();ambientMood(.6);
+   setPending(null);setScreen('peak');sfx.peak();
    setTimeout(()=>{const a=net.get().api;a&&a.finale&&a.finale()},1500);
-   setTimeout(()=>{setScreen(s=>s==='peak'?'results':s);ambientMood(0)},4600);
+   setTimeout(()=>{setScreen(s=>s==='peak'?'results':s)},4600);
    return}
   const n=li+1;
   if(!GLW){cut(n,()=>{setPending(null);setReady(false);setLi(n)},{lifted:()=>{lvT0.current=Date.now();setReady(true)}});return}
