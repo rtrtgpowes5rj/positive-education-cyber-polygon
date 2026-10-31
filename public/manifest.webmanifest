@@ -1,6 +1,6 @@
 {
- "name": "Киберполигон Positive Education",
- "short_name": "Киберполигон",
+ "name": "Стенд Positive Education",
+ "short_name": "Стенд PE",
  "description": "Интерактивная 3D-игра для стенда Positive Education",
  "start_url": "./",
  "scope": "./",

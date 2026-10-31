@@ -1,4 +1,4 @@
-export const utm='?utm_source=stand&utm_medium=qr&utm_campaign=cyber_polygon';
+export const utm='?utm_source=stand&utm_medium=qr&utm_campaign=education_stand';
 const E='https://edu-pt.ru/';
 
 export const catalogs={
